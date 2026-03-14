@@ -1,0 +1,5 @@
+{
+  "name": "Krushnam Pashu Ahaar Management",
+  "description": "Inventory, Invoicing, and Debt Collection system for Krushnam Pashu Ahaar. Features include stock tracking, customer ledgers, and invoices with previous outstanding balances.",
+  "requestFramePermissions": []
+}

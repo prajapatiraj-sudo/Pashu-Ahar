@@ -82,9 +82,14 @@ export default function App() {
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-serif italic text-xl font-bold tracking-tight"
+              className="flex flex-col"
             >
-              Krushnam
+              <div className="font-serif italic text-xl font-bold tracking-tight leading-none">
+                Krushnam
+              </div>
+              <div className="font-gujarati text-xs font-bold text-[#FF6321] mt-1">
+                કૃષ્ણમ પશુ આહાર
+              </div>
             </motion.div>
           )}
           <button 

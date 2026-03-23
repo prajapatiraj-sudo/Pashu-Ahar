@@ -60,18 +60,53 @@ export default function Products() {
     p.name_gu.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const seedProducts = async () => {
+    const sampleProducts = [
+      { name_en: 'Cotton Seed Cake', name_gu: 'કપાસિયા ખોળ', unit: 'Bag', price: 1850, purchase_price: 1750, stock_quantity: 50 },
+      { name_en: 'Maize Churi', name_gu: 'મકાઈ ચુરી', unit: 'Bag', price: 1250, purchase_price: 1150, stock_quantity: 40 },
+      { name_en: 'Wheat Bran', name_gu: 'ઘઉંનું ભૂસું', unit: 'Bag', price: 850, purchase_price: 780, stock_quantity: 60 },
+      { name_en: 'Rice Bran', name_gu: 'ડાંગરનું ભૂસું', unit: 'Bag', price: 950, purchase_price: 880, stock_quantity: 30 },
+      { name_en: 'Mustard Cake', name_gu: 'રાયડો ખોળ', unit: 'Bag', price: 1450, purchase_price: 1350, stock_quantity: 25 },
+      { name_en: 'Groundnut Cake', name_gu: 'મગફળી ખોળ', unit: 'Bag', price: 2100, purchase_price: 1950, stock_quantity: 20 },
+      { name_en: 'Mineral Mixture', name_gu: 'મિનરલ મિશ્રણ', unit: 'Kg', price: 120, purchase_price: 95, stock_quantity: 100 },
+      { name_en: 'Calcium Liquid', name_gu: 'કેલ્શિયમ લિક્વિડ', unit: 'Litre', price: 250, purchase_price: 190, stock_quantity: 50 },
+    ];
+
+    try {
+      for (const p of sampleProducts) {
+        await addDoc(collection(db, 'products'), {
+          ...p,
+          createdAt: serverTimestamp()
+        });
+      }
+      alert('Sample products added successfully!');
+    } catch (error) {
+      console.error('Error seeding products:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search products (English or Gujarati)..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
-          />
+        <div className="flex flex-1 gap-4 max-w-2xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search products (English or Gujarati)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
+            />
+          </div>
+          {products.length === 0 && (
+            <button 
+              onClick={seedProducts}
+              className="flex items-center justify-center gap-2 bg-indigo-500 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-600 transition-all whitespace-nowrap"
+            >
+              Seed Sample Items
+            </button>
+          )}
         </div>
         <button 
           onClick={() => setShowAddModal(true)}

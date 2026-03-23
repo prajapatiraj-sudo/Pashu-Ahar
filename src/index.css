@@ -1,10 +1,18 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Noto+Sans+Gujarati:wght@400;700&display=swap');
 
 @theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Libre Baskerville", serif;
   --font-gujarati: "Noto Sans Gujarati", sans-serif;
 }
 
 .font-gujarati {
   font-family: var(--font-gujarati);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

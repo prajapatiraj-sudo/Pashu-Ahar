@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut, 
   User as FirebaseUser 
 } from 'firebase/auth';
@@ -14,7 +14,8 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
-  login: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   isSales: boolean;
@@ -57,9 +58,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const login = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const register = async (email: string, password: string, name: string) => {
+    const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Create profile
+    const isAdminEmail = email === "rajkumar.prajapati@enjayworld.com";
+    const newProfile: UserProfile = {
+      uid: firebaseUser.uid,
+      email: email,
+      name: name,
+      role: isAdminEmail ? 'admin' : 'sales'
+    };
+    await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+    setProfile(newProfile);
   };
 
   const logout = async () => {
@@ -70,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isSales = profile?.role === 'sales' || isAdmin;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, isAdmin, isSales }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, isAdmin, isSales }}>
       {children}
     </AuthContext.Provider>
   );

@@ -64,7 +64,10 @@ if [ ! -f .env ]; then
     echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
     echo "NODE_ENV=production" >> .env
     echo "PORT=3000" >> .env
+    echo "GEMINI_API_KEY=\"YOUR_GEMINI_API_KEY_HERE\"" >> .env
+    echo "APP_URL=\"http://localhost:3000\"" >> .env
     echo "✅ .env file created with a secure JWT_SECRET."
+    echo "⚠️ Please update GEMINI_API_KEY in the .env file if needed."
 else
     echo "ℹ️ .env file already exists, skipping creation."
 fi

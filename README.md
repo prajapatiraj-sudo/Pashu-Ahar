@@ -1,20 +1,36 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Krushnam Management System
 
-# Run and deploy your AI Studio app
+A management system for Pashu Ahar (Cattle Feed) business.
 
-This contains everything you need to run your app locally.
+## 🚀 Quick Setup
 
-View your app in AI Studio: https://ai.studio/apps/d3f3f1e3-bdfd-44b7-bf17-a774fac145ce
+### Windows
+1.  Ensure you have [Node.js](https://nodejs.org/) installed (LTS version recommended).
+2.  Download/Clone this repository.
+3.  Double-click `setup.bat` to install dependencies and configure the environment.
+4.  Once setup is complete, run:
+    ```bash
+    npm start
+    ```
 
-## Run Locally
+### Linux
+1.  Ensure you have `git` and `curl` installed.
+2.  Run the following command:
+    ```bash
+    chmod +x setup.sh
+    ./setup.sh
+    ```
 
-**Prerequisites:**  Node.js
+## 🛠️ Configuration
+The setup scripts create a `.env` file for you. You may need to update the following variables:
+- `GEMINI_API_KEY`: Required for AI features.
+- `JWT_SECRET`: Automatically generated, but can be changed.
+- `PORT`: Default is 3000.
 
+## 📦 Dependencies
+- **Frontend**: React, Tailwind CSS, Lucide Icons.
+- **Backend**: Node.js, Express, Better-SQLite3.
+- **AI**: Google Gemini API.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 📝 License
+Proprietary.

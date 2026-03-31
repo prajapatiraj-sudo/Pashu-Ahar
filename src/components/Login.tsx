@@ -129,14 +129,7 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-8 pt-8 border-t border-black/5">
-          <button 
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-sm font-bold text-[#FF6321] hover:underline"
-          >
-            {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Create one"}
-          </button>
-        </div>
+        {/* Registration link removed as per user request */}
         
         <p className="mt-8 text-[10px] text-black/30 leading-relaxed uppercase tracking-widest font-bold">
           Authorized Personnel Only

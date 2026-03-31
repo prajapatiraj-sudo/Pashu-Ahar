@@ -1,5 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { cn } from '../lib/utils';
 
 interface SelectedItem {
   name: string;
@@ -46,14 +47,26 @@ export default function InvoicePrintLayout({
     }
   };
 
-  // Fill up to 15 rows
+  // Dynamic row height and count based on number of items
+  const itemCount = items.length;
+  let rowHeightClass = "h-11";
+  let targetRows = 15;
+
+  if (itemCount <= 5) {
+    rowHeightClass = "h-16";
+    targetRows = 10;
+  } else if (itemCount > 12) {
+    rowHeightClass = "h-9";
+    targetRows = 18;
+  }
+
   const displayItems = [...(items || [])];
-  while (displayItems.length < 15) {
+  while (displayItems.length < targetRows) {
     displayItems.push({ name: '', name_gu: '', quantity: null, rate: null });
   }
 
   return (
-    <div className="bg-white p-4 md:p-8 text-black font-gujarati max-w-[210mm] mx-auto min-h-[297mm] flex flex-col border border-black/10 print:border-0">
+    <div className="bg-white p-4 md:p-10 text-black font-gujarati w-[210mm] mx-auto min-h-[297mm] flex flex-col border border-black/10 print:border-0 print:m-0 print:p-[10mm] print:w-full print:min-h-screen">
       {/* Header */}
       <div className="flex justify-between items-start mb-1">
         <div className="text-xl font-bold">પરીક્ષિત ડી. ડાકે</div>
@@ -122,7 +135,7 @@ export default function InvoicePrintLayout({
           </thead>
           <tbody>
             {displayItems.map((item, i) => (
-              <tr key={i} className="border-b-2 border-black h-11">
+              <tr key={i} className={cn("border-b-2 border-black", rowHeightClass)}>
                 <td className="border-r-[3px] border-black text-center font-bold text-xl">{i + 1}.</td>
                 <td className="border-r-[3px] border-black px-4 font-bold text-2xl">
                   {item.name_gu || item.name}

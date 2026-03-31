@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Package, Users, FileText, CreditCard, BarChart3 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { api } from '../lib/api';
 import type { Product, Customer, Invoice } from '../types';
+
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface DashboardProps {
   onNavigate: (view: any) => void;
 }
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
+  const { t } = useLanguage();
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOutstanding: 0,
@@ -19,41 +21,39 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      const products = snapshot.docs.map(doc => doc.data() as Product);
-      setStats(prev => ({ ...prev, lowStockCount: products.filter(p => p.stock_quantity < 10).length }));
-    });
-
-    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      const customers = snapshot.docs.map(doc => doc.data() as Customer);
-      const totalOutstanding = customers.reduce((sum, cust) => sum + (cust.total_outstanding || 0), 0);
-      setStats(prev => ({ ...prev, totalOutstanding, activeCustomers: customers.length }));
-    });
-
-    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
-      const invoices = snapshot.docs.map(doc => doc.data() as Invoice);
-      const totalSales = invoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
-      setStats(prev => ({ ...prev, totalSales }));
-    });
-
-    const qRecent = query(collection(db, 'invoices'), orderBy('createdAt', 'desc'), limit(5));
-    const unsubRecent = onSnapshot(qRecent, (snapshot) => {
-      setRecentInvoices(snapshot.docs.map(doc => ({ id: doc.id as any, ...doc.data() })) as Invoice[]);
-    });
-
-    return () => {
-      unsubProducts();
-      unsubCustomers();
-      unsubInvoices();
-      unsubRecent();
-    };
+    fetchDashboardData();
   }, []);
 
+  const fetchDashboardData = async () => {
+    try {
+      const [products, customers, invoices] = await Promise.all([
+        api.products.list(),
+        api.customers.list(),
+        api.invoices.list()
+      ]);
+
+      const totalSales = invoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+      const totalOutstanding = customers.reduce((sum, cust) => sum + (cust.total_outstanding || 0), 0);
+      const lowStockCount = products.filter(p => p.stock_quantity < 10).length;
+
+      setStats({
+        totalSales,
+        totalOutstanding,
+        lowStockCount,
+        activeCustomers: customers.length
+      });
+
+      setRecentInvoices(invoices.slice(0, 5));
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
+  };
+
   const statCards = [
-    { label: 'Total Sales', value: `₹${stats.totalSales.toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Total Outstanding', value: `₹${stats.totalOutstanding.toLocaleString()}`, icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50' },
-    { label: 'Low Stock Items', value: stats.lowStockCount, icon: Package, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Active Customers', value: stats.activeCustomers, icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: t('totalSales'), value: `₹${stats.totalSales.toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: t('outstanding'), value: `₹${stats.totalOutstanding.toLocaleString()}`, icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { label: t('lowStock'), value: stats.lowStockCount, icon: Package, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: t('activeCustomers'), value: stats.activeCustomers, icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   ];
 
   return (
@@ -81,49 +81,49 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Quick Actions */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-black/5">
-          <h2 className="text-xl font-serif italic font-bold mb-6">Quick Actions</h2>
+          <h2 className="text-xl font-serif italic font-bold mb-6">{t('quickActions')}</h2>
           <div className="grid grid-cols-2 gap-4">
             <button 
               onClick={() => onNavigate('new-invoice')}
               className="flex flex-col items-center justify-center p-6 rounded-2xl bg-[#FF6321]/5 border border-[#FF6321]/10 text-[#FF6321] hover:bg-[#FF6321]/10 transition-all group"
             >
               <FileText className="mb-3 group-hover:scale-110 transition-transform" size={32} />
-              <span className="font-bold">Create Invoice</span>
+              <span className="font-bold">{t('newInvoice')}</span>
             </button>
             <button 
               onClick={() => onNavigate('payments')}
               className="flex flex-col items-center justify-center p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 transition-all group"
             >
               <CreditCard className="mb-3 group-hover:scale-110 transition-transform" size={32} />
-              <span className="font-bold">Record Payment</span>
+              <span className="font-bold">{t('payments')}</span>
             </button>
             <button 
               onClick={() => onNavigate('products')}
               className="flex flex-col items-center justify-center p-6 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 hover:bg-amber-100 transition-all group"
             >
               <Package className="mb-3 group-hover:scale-110 transition-transform" size={32} />
-              <span className="font-bold">Manage Stock</span>
+              <span className="font-bold">{t('inventory')}</span>
             </button>
             <button 
               onClick={() => onNavigate('customers')}
               className="flex flex-col items-center justify-center p-6 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-100 transition-all group"
             >
               <Users className="mb-3 group-hover:scale-110 transition-transform" size={32} />
-              <span className="font-bold">Customer List</span>
+              <span className="font-bold">{t('customers')}</span>
             </button>
             <button 
               onClick={() => onNavigate('reports')}
               className="flex flex-col items-center justify-center p-6 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 hover:bg-purple-100 transition-all group"
             >
               <BarChart3 className="mb-3 group-hover:scale-110 transition-transform" size={32} />
-              <span className="font-bold">View Reports</span>
+              <span className="font-bold">{t('viewReports')}</span>
             </button>
           </div>
         </div>
 
         {/* Recent Activity */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-black/5">
-          <h2 className="text-xl font-serif italic font-bold mb-6">Recent Activity</h2>
+          <h2 className="text-xl font-serif italic font-bold mb-6">{t('recentInvoices')}</h2>
           <div className="space-y-4">
             {recentInvoices.map((inv) => (
               <div key={inv.id} className="flex items-center justify-between py-3 border-b border-black/5 last:border-0">
@@ -132,7 +132,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     <FileText size={18} className="text-black/40" />
                   </div>
                   <div>
-                    <div className="font-bold">New Invoice #{inv.id.toString().slice(-4)}</div>
+                    <div className="font-bold">{t('newInvoice')} #{inv.id.toString().slice(-4)}</div>
                     <div className="text-xs text-black/40">{inv.customer_name}</div>
                   </div>
                 </div>
@@ -140,7 +140,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               </div>
             ))}
             {recentInvoices.length === 0 && (
-              <p className="text-center text-black/40 py-8">No recent activity</p>
+              <p className="text-center text-black/40 py-8">{t('noInvoicesFound')}</p>
             )}
           </div>
         </div>

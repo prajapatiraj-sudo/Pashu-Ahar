@@ -3,12 +3,14 @@ import { FileText, Search, Printer, Eye, ChevronRight, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { api } from '../lib/api';
 import type { Invoice } from '../types';
 import InvoicePrintLayout from './InvoicePrintLayout';
 
+import { useLanguage } from '../contexts/LanguageContext';
+
 export default function Invoices() {
+  const { t } = useLanguage();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -18,16 +20,17 @@ export default function Invoices() {
   const [isPrintPending, setIsPrintPending] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'invoices'), orderBy('date', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const invoicesData = snapshot.docs.map(doc => ({
-        id: doc.id as any,
-        ...doc.data()
-      })) as Invoice[];
-      setInvoices(invoicesData);
-    });
-    return unsubscribe;
+    fetchInvoices();
   }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      const data = await api.invoices.list();
+      setInvoices(data);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+    }
+  };
 
   useEffect(() => {
     if (isPrintPending && !isLoadingItems && invoiceItems.length > 0) {
@@ -69,7 +72,7 @@ export default function Invoices() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
           <input 
             type="text" 
-            placeholder="Search by customer or invoice #..."
+            placeholder={t('search') + "..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
@@ -81,14 +84,14 @@ export default function Invoices() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-black/5 text-[11px] uppercase tracking-widest text-black/40 font-bold">
-              <th className="px-8 py-4">Inv #</th>
-              <th className="px-8 py-4">Date</th>
-              <th className="px-8 py-4">Customer</th>
-              <th className="px-8 py-4">Subtotal</th>
-              <th className="px-8 py-4">Prev. Bal</th>
-              <th className="px-8 py-4">Total</th>
-              <th className="px-8 py-4">Paid</th>
-              <th className="px-8 py-4 text-right">Actions</th>
+              <th className="px-8 py-4">{t('invoiceNumber')}</th>
+              <th className="px-8 py-4">{t('date')}</th>
+              <th className="px-8 py-4">{t('customer')}</th>
+              <th className="px-8 py-4">{t('subtotal')}</th>
+              <th className="px-8 py-4">{t('outstanding')}</th>
+              <th className="px-8 py-4">{t('total')}</th>
+              <th className="px-8 py-4">{t('paid')}</th>
+              <th className="px-8 py-4 text-right">{t('actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -147,7 +150,7 @@ export default function Invoices() {
                     <FileText size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">Invoice Preview</h3>
+                    <h3 className="text-xl font-bold">{t('invoicePreview')}</h3>
                     <p className="text-sm text-black/40">#{selectedInvoice.id.toString().slice(-6)} • {formatDate(selectedInvoice.date)}</p>
                   </div>
                 </div>
@@ -159,7 +162,7 @@ export default function Invoices() {
                     className="flex items-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all disabled:opacity-50 shadow-lg shadow-black/10"
                   >
                     <Printer size={20} />
-                    {isLoadingItems ? 'Loading...' : 'Print Invoice'}
+                    {isLoadingItems ? t('recording') + '...' : t('print')}
                   </button>
                   <button 
                     onClick={() => setShowPreview(false)}
@@ -184,7 +187,8 @@ export default function Invoices() {
                         selectedCustomer={{
                           name: selectedInvoice.customer_name || '',
                           address: (selectedInvoice as any).customer_address || '',
-                          phone: (selectedInvoice as any).customer_phone || ''
+                          phone: (selectedInvoice as any).customer_phone || '',
+                          village: (selectedInvoice as any).customer_village || ''
                         }}
                         items={invoiceItems}
                         subtotal={selectedInvoice.subtotal}
@@ -212,7 +216,8 @@ export default function Invoices() {
               selectedCustomer={{
                 name: selectedInvoice.customer_name || '',
                 address: (selectedInvoice as any).customer_address || '',
-                phone: (selectedInvoice as any).customer_phone || ''
+                phone: (selectedInvoice as any).customer_phone || '',
+                village: (selectedInvoice as any).customer_village || ''
               }}
               items={invoiceItems}
               subtotal={selectedInvoice.subtotal}

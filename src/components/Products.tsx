@@ -1,28 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Save, X, Package, Search } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { api } from '../lib/api';
 import type { Product } from '../types';
 import { cn } from '../lib/utils';
+import { ConfirmModal, AlertModal } from './ui/Modal';
+
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Products() {
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [isEditing, setIsEditing] = useState<string | number | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0 });
+  
+  const [alert, setAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | number | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('name_en'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({
-        id: doc.id as any,
-        ...doc.data()
-      })) as Product[]);
-    });
-    return unsubscribe;
+    fetchProducts();
   }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const data = await api.products.list();
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
 
   const handleEdit = (product: Product) => {
     setIsEditing(product.id);
@@ -31,27 +39,39 @@ export default function Products() {
 
   const handleSave = async (id: string | number) => {
     try {
-      const productRef = doc(db, 'products', id.toString());
-      await updateDoc(productRef, editForm);
+      await api.products.update(id, editForm);
       setIsEditing(null);
+      fetchProducts();
+      setAlert({ type: 'success', title: t('success'), message: 'Product updated successfully' });
     } catch (error) {
       console.error('Error updating product:', error);
-      alert('Failed to update product. Please try again.');
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to update product. Please try again.' });
+    }
+  };
+
+  const handleDelete = async (id: string | number) => {
+    try {
+      await api.products.delete(id);
+      setConfirmDelete(null);
+      fetchProducts();
+      setAlert({ type: 'success', title: t('success'), message: 'Product moved to recycle bin' });
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to delete product. Please try again.' });
     }
   };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'products'), {
-        ...newProduct,
-        createdAt: serverTimestamp()
-      });
+      await api.products.create(newProduct);
       setShowAddModal(false);
       setNewProduct({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0 });
+      fetchProducts();
+      setAlert({ type: 'success', title: t('success'), message: 'Product added successfully' });
     } catch (error) {
       console.error('Error adding product:', error);
-      alert('Failed to add product. Please try again.');
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to add product. Please try again.' });
     }
   };
 
@@ -74,26 +94,41 @@ export default function Products() {
 
     try {
       for (const p of sampleProducts) {
-        await addDoc(collection(db, 'products'), {
-          ...p,
-          createdAt: serverTimestamp()
-        });
+        await api.products.create(p);
       }
-      alert('Sample products added successfully!');
+      fetchProducts();
+      setAlert({ type: 'success', title: t('success'), message: 'Sample products added successfully!' });
     } catch (error) {
       console.error('Error seeding products:', error);
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to seed products.' });
     }
   };
 
   return (
     <div className="space-y-6">
+      <AlertModal
+        isOpen={!!alert}
+        onClose={() => setAlert(null)}
+        title={alert?.title || ''}
+        message={alert?.message || ''}
+        type={alert?.type}
+      />
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
+        title="Delete Product"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+        confirmText="Delete"
+        type="danger"
+      />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-1 gap-4 max-w-2xl">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
             <input 
               type="text" 
-              placeholder="Search products (English or Gujarati)..."
+              placeholder={t('search') + "..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
@@ -113,7 +148,7 @@ export default function Products() {
           className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
         >
           <Plus size={20} />
-          Add Product
+          {t('addProduct')}
         </button>
       </div>
 
@@ -121,13 +156,11 @@ export default function Products() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-black/5 text-[11px] uppercase tracking-widest text-black/40 font-bold">
-              <th className="px-8 py-4">Product Name</th>
-              <th className="px-8 py-4">Gujarati Name</th>
-              <th className="px-8 py-4">Unit</th>
-              <th className="px-8 py-4">Purchase (₹)</th>
-              <th className="px-8 py-4">Selling (₹)</th>
-              <th className="px-8 py-4">Stock</th>
-              <th className="px-8 py-4 text-right">Actions</th>
+              <th className="px-8 py-4">{t('product')}</th>
+              <th className="px-8 py-4">{t('unit')}</th>
+              <th className="px-8 py-4">{t('price')} (₹)</th>
+              <th className="px-8 py-4">{t('stock')}</th>
+              <th className="px-8 py-4 text-right">{t('actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -196,7 +229,7 @@ export default function Products() {
                     product.stock_quantity < 10 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                   )}>
                     <Package size={14} />
-                    {product.stock_quantity} {product.unit}s
+                    {t('stock')}: {product.stock_quantity} {product.unit}
                   </div>
                 </td>
                 <td className="px-8 py-4 text-right">
@@ -210,12 +243,20 @@ export default function Products() {
                       </button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => handleEdit(product)}
-                      className="p-2 text-black/20 hover:text-[#FF6321] hover:bg-[#FF6321]/5 rounded-lg transition-all"
-                    >
-                      <Edit2 size={18} />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleEdit(product)}
+                        className="p-2 text-black/20 hover:text-[#FF6321] hover:bg-[#FF6321]/5 rounded-lg transition-all"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => setConfirmDelete(product.id)}
+                        className="p-2 text-black/20 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -229,14 +270,14 @@ export default function Products() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-serif italic font-bold">New Product</h2>
+              <h2 className="text-2xl font-serif italic font-bold">{t('addProduct')}</h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-black/5 rounded-full">
                 <X size={24} />
               </button>
             </div>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">English Name</label>
+                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('product')}</label>
                 <input 
                   required
                   className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
@@ -244,28 +285,9 @@ export default function Products() {
                   onChange={e => setNewProduct({...newProduct, name_en: e.target.value})}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Gujarati Name</label>
-                <input 
-                  required
-                  className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                  value={newProduct.name_gu}
-                  onChange={e => setNewProduct({...newProduct, name_gu: e.target.value})}
-                />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Purchase Price (₹)</label>
-                  <input 
-                    required
-                    type="number"
-                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                    value={newProduct.purchase_price}
-                    onChange={e => setNewProduct({...newProduct, purchase_price: parseFloat(e.target.value)})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Selling Price (₹)</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('price')} (₹)</label>
                   <input 
                     required
                     type="number"
@@ -274,20 +296,8 @@ export default function Products() {
                     onChange={e => setNewProduct({...newProduct, price: parseFloat(e.target.value)})}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Unit</label>
-                  <input 
-                    required
-                    placeholder="e.g. Box, Kg"
-                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                    value={newProduct.unit}
-                    onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Initial Stock</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('stock')}</label>
                   <input 
                     required
                     type="number"
@@ -297,8 +307,17 @@ export default function Products() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('unit')}</label>
+                <input 
+                  required
+                  className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                  value={newProduct.unit}
+                  onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                />
+              </div>
               <button type="submit" className="w-full bg-[#FF6321] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#E5591D] transition-all">
-                Save Product
+                {t('save')}
               </button>
             </form>
           </div>

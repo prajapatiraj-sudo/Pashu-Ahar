@@ -16,7 +16,8 @@ import {
   AlertCircle,
   LogOut,
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -32,24 +33,33 @@ import Invoices from './components/Invoices';
 import NewInvoice from './components/NewInvoice';
 import Payments from './components/Payments';
 import Login from './components/Login';
-import UserManagement from './components/UserManagement';
+import RecycleBin from './components/RecycleBin';
+import { Trash2 } from 'lucide-react';
 import Reports from './components/Reports';
+import BackupRestore from './components/BackupRestore';
+import UserManagement from './components/UserManagement';
 
-type View = 'dashboard' | 'products' | 'customers' | 'invoices' | 'new-invoice' | 'payments' | 'users' | 'reports';
+import { useLanguage } from './contexts/LanguageContext';
+import { Globe } from 'lucide-react';
+
+type View = 'dashboard' | 'products' | 'customers' | 'invoices' | 'new-invoice' | 'payments' | 'users' | 'reports' | 'backup' | 'recycle-bin';
 
 export default function App() {
   const { user, profile, loading, logout, isAdmin, isSales } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'sales'] },
-    { id: 'products', label: 'Inventory', icon: Package, roles: ['admin', 'sales'] },
-    { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'sales'] },
-    { id: 'invoices', label: 'Invoices', icon: FileText, roles: ['admin', 'sales'] },
-    { id: 'payments', label: 'Payments', icon: CreditCard, roles: ['admin', 'sales'] },
-    { id: 'reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'sales'] },
-    { id: 'users', label: 'Users', icon: ShieldCheck, roles: ['admin'] },
+    { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard, roles: ['admin', 'sales'] },
+    { id: 'products', label: t('inventory'), icon: Package, roles: ['admin', 'sales'] },
+    { id: 'customers', label: t('customers'), icon: Users, roles: ['admin', 'sales'] },
+    { id: 'invoices', label: t('invoices'), icon: FileText, roles: ['admin', 'sales'] },
+    { id: 'payments', label: t('payments'), icon: CreditCard, roles: ['admin', 'sales'] },
+    { id: 'reports', label: t('reports'), icon: BarChart3, roles: ['admin', 'sales'] },
+    { id: 'users', label: t('users'), icon: ShieldCheck, roles: ['admin'] },
+    { id: 'backup', label: t('backupRestore'), icon: Database, roles: ['admin'] },
+    { id: 'recycle-bin', label: 'Recycle Bin', icon: Trash2, roles: ['admin'] },
   ];
 
   const filteredNavItems = navItems.filter(item => 
@@ -119,6 +129,26 @@ export default function App() {
         </nav>
 
         <div className="p-4 space-y-2">
+          {isSidebarOpen && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl mb-4">
+              <Globe size={16} className="text-white/40" />
+              <div className="flex gap-2">
+                {(['en', 'gu', 'hi'] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => setLanguage(lang)}
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg transition-all",
+                      language === lang ? "bg-[#FF6321] text-white" : "text-white/40 hover:text-white"
+                    )}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <button
             onClick={() => setCurrentView('new-invoice')}
             className={cn(
@@ -127,7 +157,7 @@ export default function App() {
             )}
           >
             <PlusCircle size={20} />
-            {isSidebarOpen && <span>New Invoice</span>}
+            {isSidebarOpen && <span>{t('newInvoice')}</span>}
           </button>
           
           <button
@@ -138,7 +168,7 @@ export default function App() {
             )}
           >
             <LogOut size={20} />
-            {isSidebarOpen && <span className="font-medium">Sign Out</span>}
+            {isSidebarOpen && <span className="font-medium">{t('logout')}</span>}
           </button>
         </div>
       </aside>
@@ -160,7 +190,7 @@ export default function App() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
               <input 
                 type="text" 
-                placeholder="Search anything..."
+                placeholder={t('search') + "..."}
                 className="pl-10 pr-4 py-2 bg-black/5 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all w-64"
               />
             </div>
@@ -193,6 +223,8 @@ export default function App() {
               {currentView === 'payments' && <Payments />}
               {currentView === 'reports' && <Reports />}
               {currentView === 'users' && <UserManagement />}
+              {currentView === 'backup' && <BackupRestore />}
+              {currentView === 'recycle-bin' && <RecycleBin />}
             </motion.div>
           </AnimatePresence>
         </div>

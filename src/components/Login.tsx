@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, UserPlus, Mail, Lock, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../firebase';
 
 export default function Login() {
   const { login, register, loading } = useAuth();
@@ -13,16 +11,6 @@ export default function Login() {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setError('');
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (err: any) {
-      setError(err.message || 'Google Sign-in failed');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +23,7 @@ export default function Login() {
         await login(email, password);
       }
     } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password login is not enabled in Firebase Console. Please enable it or use Google Sign-in.');
-      } else {
-        setError(err.message || 'Authentication failed');
-      }
+      setError(err.message || 'Authentication failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -144,20 +128,6 @@ export default function Login() {
             )}
           </button>
         </form>
-
-        <div className="mt-6 flex items-center gap-4">
-          <div className="h-px bg-black/5 flex-1"></div>
-          <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest">Or</span>
-          <div className="h-px bg-black/5 flex-1"></div>
-        </div>
-
-        <button 
-          onClick={handleGoogleLogin}
-          className="mt-6 w-full flex items-center justify-center gap-3 bg-white border border-black/10 text-black/60 py-4 rounded-2xl font-bold hover:bg-black/5 transition-all"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-          <span>Sign in with Google</span>
-        </button>
 
         <div className="mt-8 pt-8 border-t border-black/5">
           <button 

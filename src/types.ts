@@ -7,6 +7,8 @@ export interface Product {
   price: number;
   purchase_price: number;
   stock_quantity: number;
+  deleted?: boolean;
+  deletedAt?: any;
 }
 
 export interface Customer {
@@ -14,7 +16,10 @@ export interface Customer {
   name: string;
   phone: string;
   address: string;
+  village?: string;
   total_outstanding: number;
+  deleted?: boolean;
+  deletedAt?: any;
 }
 
 export interface Invoice {
@@ -28,6 +33,8 @@ export interface Invoice {
   paid_amount: number;
   balance_due: number;
   items?: any[];
+  deleted?: boolean;
+  deletedAt?: any;
 }
 
 export interface InvoiceItem {
@@ -46,6 +53,8 @@ export interface Payment {
   amount: number;
   method: string;
   note: string;
+  deleted?: boolean;
+  deletedAt?: any;
 }
 
 export interface UserProfile {

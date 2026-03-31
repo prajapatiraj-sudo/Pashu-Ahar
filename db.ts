@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 
 const db = new Database('krushnam.db');
 
@@ -12,7 +13,10 @@ db.exec(`
     name_hi TEXT,
     unit TEXT DEFAULT 'Bag',
     price REAL DEFAULT 0,
-    stock_quantity INTEGER DEFAULT 0
+    purchase_price REAL DEFAULT 0,
+    stock_quantity INTEGER DEFAULT 0,
+    deleted INTEGER DEFAULT 0,
+    deletedAt TEXT
   );
 
   CREATE TABLE IF NOT EXISTS customers (
@@ -20,7 +24,10 @@ db.exec(`
     name TEXT NOT NULL,
     phone TEXT,
     address TEXT,
-    total_outstanding REAL DEFAULT 0
+    village TEXT,
+    total_outstanding REAL DEFAULT 0,
+    deleted INTEGER DEFAULT 0,
+    deletedAt TEXT
   );
 
   CREATE TABLE IF NOT EXISTS invoices (
@@ -32,6 +39,8 @@ db.exec(`
     total_amount REAL,
     paid_amount REAL,
     balance_due REAL,
+    deleted INTEGER DEFAULT 0,
+    deletedAt TEXT,
     FOREIGN KEY (customer_id) REFERENCES customers(id)
   );
 
@@ -41,6 +50,7 @@ db.exec(`
     product_id INTEGER,
     quantity INTEGER,
     rate REAL,
+    purchase_price REAL,
     amount REAL,
     FOREIGN KEY (invoice_id) REFERENCES invoices(id),
     FOREIGN KEY (product_id) REFERENCES products(id)
@@ -53,7 +63,19 @@ db.exec(`
     amount REAL,
     method TEXT,
     note TEXT,
+    deleted INTEGER DEFAULT 0,
+    deletedAt TEXT,
     FOREIGN KEY (customer_id) REFERENCES customers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT,
+    role TEXT DEFAULT 'sales',
+    deleted INTEGER DEFAULT 0,
+    deletedAt TEXT
   );
 `);
 
@@ -77,6 +99,15 @@ const seedProducts = [
 ];
 
 const checkProducts = db.prepare('SELECT count(*) as count FROM products').get() as { count: number };
+
+// Seed default admin user
+const checkAdmin = db.prepare('SELECT count(*) as count FROM users WHERE role = ?').get('admin') as { count: number };
+if (checkAdmin.count === 0) {
+  const hashedPassword = bcrypt.hashSync('admin123', 10);
+  db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
+    .run('rajkumar.prajapati@enjayworld.com', hashedPassword, 'Admin', 'admin');
+}
+
 if (checkProducts.count === 0) {
   const insert = db.prepare('INSERT INTO products (name_en, name_gu, price) VALUES (?, ?, ?)');
   seedProducts.forEach(p => insert.run(p.en, p.gu, p.price));

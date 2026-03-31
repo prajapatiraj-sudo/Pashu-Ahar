@@ -13,15 +13,17 @@ import {
   Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { api } from '../lib/api';
 import type { Product, Customer, Invoice } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
+import { useLanguage } from '../contexts/LanguageContext';
+
 type ReportType = 'profit-loss' | 'outstanding' | 'stock' | 'best-selling' | 'low-stock';
 
 export default function Reports() {
+  const { t } = useLanguage();
   const [activeReport, setActiveReport] = useState<ReportType>('profit-loss');
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -30,25 +32,25 @@ export default function Reports() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[]);
-    });
-
-    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[]);
-    });
-
-    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
-      setInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Invoice[]);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubProducts();
-      unsubCustomers();
-      unsubInvoices();
-    };
+    fetchReportsData();
   }, []);
+
+  const fetchReportsData = async () => {
+    try {
+      const [productsData, customersData, invoicesData] = await Promise.all([
+        api.products.list(),
+        api.customers.list(),
+        api.invoices.list()
+      ]);
+      setProducts(productsData);
+      setCustomers(customersData);
+      setInvoices(invoicesData);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching reports data:', error);
+      setLoading(false);
+    }
+  };
 
   const calculateProfitLoss = () => {
     let totalSales = 0;
@@ -133,11 +135,11 @@ export default function Reports() {
   }
 
   const reportTabs = [
-    { id: 'profit-loss', label: 'Profit & Loss', icon: BarChart3 },
-    { id: 'outstanding', label: 'Outstanding', icon: Users },
-    { id: 'stock', label: 'Stock Status', icon: Package },
-    { id: 'best-selling', label: 'Best Selling', icon: TrendingUp },
-    { id: 'low-stock', label: 'Low Stock', icon: AlertCircle },
+    { id: 'profit-loss', label: t('profitLoss'), icon: BarChart3 },
+    { id: 'outstanding', label: t('outstanding'), icon: Users },
+    { id: 'stock', label: t('stockStatus'), icon: Package },
+    { id: 'best-selling', label: t('bestSelling'), icon: TrendingUp },
+    { id: 'low-stock', label: t('lowStock'), icon: AlertCircle },
   ];
 
   return (
@@ -175,7 +177,7 @@ export default function Reports() {
               className="flex items-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-2xl font-bold hover:brightness-110 transition-all shadow-lg shadow-[#25D366]/20"
             >
               <Share2 size={18} />
-              Share on WhatsApp
+              {t('shareWhatsApp')}
             </button>
             <button className="p-3 bg-black/5 text-black/40 hover:text-black hover:bg-black/10 rounded-2xl transition-all">
               <Download size={20} />
@@ -196,15 +198,15 @@ export default function Reports() {
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
-                      <div className="text-emerald-600 font-bold text-xs uppercase tracking-widest mb-2">Total Revenue</div>
+                      <div className="text-emerald-600 font-bold text-xs uppercase tracking-widest mb-2">{t('totalRevenue')}</div>
                       <div className="text-3xl font-bold text-emerald-900">₹{calculateProfitLoss().totalSales.toLocaleString()}</div>
                     </div>
                     <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100">
-                      <div className="text-rose-600 font-bold text-xs uppercase tracking-widest mb-2">Total Expenses</div>
+                      <div className="text-rose-600 font-bold text-xs uppercase tracking-widest mb-2">{t('totalExpenses')}</div>
                       <div className="text-3xl font-bold text-rose-900">₹{calculateProfitLoss().totalCost.toLocaleString()}</div>
                     </div>
                     <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                      <div className="text-indigo-600 font-bold text-xs uppercase tracking-widest mb-2">Net Profit</div>
+                      <div className="text-indigo-600 font-bold text-xs uppercase tracking-widest mb-2">{t('netProfit')}</div>
                       <div className="text-3xl font-bold text-indigo-900">₹{calculateProfitLoss().profit.toLocaleString()}</div>
                     </div>
                   </div>
@@ -234,7 +236,7 @@ export default function Reports() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
                     <input 
                       type="text" 
-                      placeholder="Filter by customer name..."
+                      placeholder={t('search') + "..."}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-black/5 border-none rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321]"
@@ -244,9 +246,9 @@ export default function Reports() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-black/5 text-[10px] uppercase tracking-widest text-black/40 font-bold">
-                          <th className="px-6 py-4">Customer Name</th>
-                          <th className="px-6 py-4">Phone</th>
-                          <th className="px-6 py-4 text-right">Outstanding Amount</th>
+                          <th className="px-6 py-4">{t('customer')}</th>
+                          <th className="px-6 py-4">{t('phone')}</th>
+                          <th className="px-6 py-4 text-right">{t('outstanding')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
@@ -279,18 +281,18 @@ export default function Reports() {
                             "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
                             p.stock_quantity < 10 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                           )}>
-                            {p.stock_quantity < 10 ? 'Low Stock' : 'In Stock'}
+                            {p.stock_quantity < 10 ? t('lowStock') : t('inStock')}
                           </div>
                         </div>
                         <h3 className="font-bold text-lg mb-1">{p.name_en}</h3>
                         <p className="text-sm text-black/40 font-gujarati mb-4">{p.name_gu}</p>
                         <div className="flex justify-between items-end">
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">Current Stock</div>
-                            <div className="text-xl font-bold">{p.stock_quantity} {p.unit}s</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{t('currentStock')}</div>
+                            <div className="text-xl font-bold">{p.stock_quantity} {p.unit}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">Stock Value</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{t('stockValue')}</div>
                             <div className="text-xl font-bold text-indigo-600">₹{(p.stock_quantity * (p.purchase_price || 0)).toLocaleString()}</div>
                           </div>
                         </div>
@@ -315,7 +317,7 @@ export default function Reports() {
                           </div>
                           <div className="text-right">
                             <div className="font-bold text-emerald-600">₹{item.revenue.toLocaleString()}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">Revenue</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{t('revenue')}</div>
                           </div>
                         </div>
                       ))}
@@ -338,8 +340,8 @@ export default function Reports() {
                   <div className="flex items-center gap-3 p-6 bg-rose-50 border border-rose-100 rounded-3xl text-rose-600">
                     <AlertCircle size={24} />
                     <div>
-                      <h4 className="font-bold">Inventory Alert</h4>
-                      <p className="text-sm opacity-80">There are {products.filter(p => p.stock_quantity < 10).length} items running low on stock.</p>
+                      <h4 className="font-bold">{t('lowStock')}</h4>
+                      <p className="text-sm opacity-80">{t('lowStockAlert')}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

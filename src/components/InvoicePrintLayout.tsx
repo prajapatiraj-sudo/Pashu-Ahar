@@ -13,6 +13,7 @@ interface InvoicePrintLayoutProps {
     name: string;
     address: string;
     phone: string;
+    village?: string;
   } | null;
   items: SelectedItem[];
   subtotal: number;
@@ -93,7 +94,7 @@ export default function InvoicePrintLayout({
         <div className="flex items-baseline gap-2 flex-1">
           <span className="font-bold text-2xl">ગામ</span>
           <span className="border-b-2 border-black border-dotted flex-1 text-2xl px-2 font-bold">
-            {selectedCustomer?.address || '...................................................................'}
+            {selectedCustomer?.village || selectedCustomer?.address || '...................................................................'}
           </span>
         </div>
         <div className="flex items-baseline gap-2 w-[40%]">
@@ -147,28 +148,24 @@ export default function InvoicePrintLayout({
                 {subtotal > 0 ? subtotal : ''}
               </td>
             </tr>
-            {previousOutstanding > 0 && (
-              <tr className="border-t-2 border-black h-11">
-                <td colSpan={2} className="border-r-[3px] border-black"></td>
-                <td colSpan={2} className="border-r-[3px] border-black text-right px-4 font-bold text-xl text-[#dc2626]" style={{ color: '#dc2626' }}>
-                  જૂની બાકી
-                </td>
-                <td className="text-right px-2 font-bold text-2xl text-[#dc2626]" style={{ color: '#dc2626' }}>
-                  {previousOutstanding}
-                </td>
-              </tr>
-            )}
-            {previousOutstanding > 0 && (
-              <tr className="border-t-[3px] border-black h-12 bg-gray-100">
-                <td colSpan={2} className="border-r-[3px] border-black"></td>
-                <td colSpan={2} className="border-r-[3px] border-black text-center font-bold text-3xl">
-                  કુલ ટોટલ
-                </td>
-                <td className="text-right px-2 font-bold text-3xl">
-                  {totalAmount}
-                </td>
-              </tr>
-            )}
+            <tr className="border-t-2 border-black h-11">
+              <td colSpan={2} className="border-r-[3px] border-black"></td>
+              <td colSpan={2} className="border-r-[3px] border-black text-right px-4 font-bold text-xl text-[#dc2626]" style={{ color: '#dc2626' }}>
+                જૂની બાકી
+              </td>
+              <td className="text-right px-2 font-bold text-2xl text-[#dc2626]" style={{ color: '#dc2626' }}>
+                {previousOutstanding}
+              </td>
+            </tr>
+            <tr className="border-t-[3px] border-black h-12 bg-gray-100">
+              <td colSpan={2} className="border-r-[3px] border-black"></td>
+              <td colSpan={2} className="border-r-[3px] border-black text-center font-bold text-3xl">
+                કુલ ટોટલ
+              </td>
+              <td className="text-right px-2 font-bold text-3xl">
+                {totalAmount}
+              </td>
+            </tr>
           </tfoot>
         </table>
       </div>

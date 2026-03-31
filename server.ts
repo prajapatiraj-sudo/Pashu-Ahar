@@ -152,11 +152,11 @@ async function startServer() {
   });
 
   app.get('/api/customers/:id/ledger', authenticate, (req, res) => {
-    const invoices = db.prepare('SELECT id, "invoice" as type, date, total_amount as amount FROM invoices WHERE customer_id = ? AND deleted = 0').all(req.params.id);
-    const payments = db.prepare('SELECT id, "payment" as type, date, amount FROM payments WHERE customer_id = ? AND deleted = 0').all(req.params.id);
+    const invoices = db.prepare('SELECT id, "invoice" as type, date, subtotal as amount, total_amount as balance_after FROM invoices WHERE customer_id = ? AND deleted = 0').all(req.params.id);
+    const payments = db.prepare('SELECT id, "payment" as type, date, amount, method, note FROM payments WHERE customer_id = ? AND deleted = 0').all(req.params.id);
     
     const ledger = [...invoices, ...payments].sort((a: any, b: any) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+      new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     
     res.json(ledger);

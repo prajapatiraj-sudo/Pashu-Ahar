@@ -297,7 +297,7 @@ export default function UserManagement() {
         <div>
           <h4 className="font-bold text-amber-900 mb-1">Security Note</h4>
           <p className="text-sm text-amber-800/70 leading-relaxed">
-            Admins can manually create user accounts here. Alternatively, new users who sign in with Google are automatically assigned the <strong>Sales</strong> role.
+            Admins can manually create user accounts here. All users must be registered by an administrator to access the system.
           </p>
         </div>
       </div>

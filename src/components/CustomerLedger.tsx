@@ -75,39 +75,46 @@ export default function CustomerLedger({ customer, onClose }: CustomerLedgerProp
                   </td>
                 </tr>
               ) : (
-                transactions.map((tx, index) => {
-                  // Calculate running balance (this is simplified, ideally should be done in the sort/map)
-                  return (
-                    <tr key={tx.id} className="hover:bg-black/[0.02] transition-colors">
-                      <td className="px-8 py-4 text-sm font-medium">
-                        {format(new Date(tx.date), 'dd MMM yyyy')}
-                      </td>
-                      <td className="px-8 py-4">
-                        <div className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-                          tx.type === 'invoice' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                        )}>
-                          {tx.type === 'invoice' ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
-                          {tx.type}
-                        </div>
-                      </td>
-                      <td className="px-8 py-4 text-sm text-black/60">
-                        {tx.type === 'invoice' ? `Invoice #${tx.id.toString().slice(-4)}` : `Payment via ${tx.method}`}
-                        {tx.note && <span className="block text-[10px] text-black/30 italic">{tx.note}</span>}
-                      </td>
-                      <td className="px-8 py-4 text-right font-bold text-rose-600">
-                        {tx.type === 'invoice' ? `₹${tx.amount.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="px-8 py-4 text-right font-bold text-emerald-600">
-                        {tx.type === 'payment' ? `₹${tx.amount.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="px-8 py-4 text-right font-bold">
-                        {/* Running balance would be better, but for now just showing the amount */}
-                        ₹{tx.amount.toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })
+                (() => {
+                  let runningBalance = 0;
+                  return transactions.map((tx) => {
+                    if (tx.type === 'invoice') {
+                      runningBalance += tx.amount;
+                    } else {
+                      runningBalance -= tx.amount;
+                    }
+
+                    return (
+                      <tr key={`${tx.type}-${tx.id}`} className="hover:bg-black/[0.02] transition-colors">
+                        <td className="px-8 py-4 text-sm font-medium">
+                          {format(new Date(tx.date), 'dd MMM yyyy')}
+                        </td>
+                        <td className="px-8 py-4">
+                          <div className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
+                            tx.type === 'invoice' ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                          )}>
+                            {tx.type === 'invoice' ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
+                            {tx.type}
+                          </div>
+                        </td>
+                        <td className="px-8 py-4 text-sm text-black/60">
+                          {tx.type === 'invoice' ? `Invoice #${tx.id.toString().slice(-4)}` : `Payment via ${tx.method}`}
+                          {tx.note && <span className="block text-[10px] text-black/30 italic">{tx.note}</span>}
+                        </td>
+                        <td className="px-8 py-4 text-right font-bold text-rose-600">
+                          {tx.type === 'invoice' ? `₹${tx.amount.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="px-8 py-4 text-right font-bold text-emerald-600">
+                          {tx.type === 'payment' ? `₹${tx.amount.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="px-8 py-4 text-right font-bold">
+                          ₹{runningBalance.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()
               )}
             </tbody>
           </table>

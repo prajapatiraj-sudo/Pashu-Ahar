@@ -67,8 +67,15 @@ export default function App() {
   );
 
   const handleLogout = async () => {
-    await logout();
-    window.location.href = '/';
+    try {
+      await logout();
+      // Clear all local storage just in case
+      localStorage.clear();
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+      window.location.href = '/';
+    }
   };
 
   if (loading) {

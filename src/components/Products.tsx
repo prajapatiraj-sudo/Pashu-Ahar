@@ -157,7 +157,6 @@ export default function Products() {
           <thead>
             <tr className="bg-black/5 text-[11px] uppercase tracking-widest text-black/40 font-bold">
               <th className="px-8 py-4">{t('product')}</th>
-              <th className="px-8 py-4">{t('unit')}</th>
               <th className="px-8 py-4">Unit Price (₹)</th>
               <th className="px-8 py-4">Selling Price (₹)</th>
               <th className="px-8 py-4">{t('stock')}</th>
@@ -169,35 +168,32 @@ export default function Products() {
               <tr key={product.id} className="hover:bg-black/[0.02] transition-colors group">
                 <td className="px-8 py-4">
                   {isEditing === product.id ? (
-                    <input 
-                      className="w-full p-2 border rounded-lg"
-                      value={editForm.name_en}
-                      onChange={e => setEditForm({...editForm, name_en: e.target.value})}
-                    />
+                    <div className="space-y-2">
+                      <input 
+                        className="w-full p-2 border rounded-lg"
+                        placeholder="English Name"
+                        value={editForm.name_en}
+                        onChange={e => setEditForm({...editForm, name_en: e.target.value})}
+                      />
+                      <input 
+                        className="w-full p-2 border rounded-lg font-gujarati"
+                        placeholder="Gujarati Name"
+                        value={editForm.name_gu}
+                        onChange={e => setEditForm({...editForm, name_gu: e.target.value})}
+                      />
+                      <input 
+                        className="w-full p-2 border rounded-lg"
+                        placeholder="Unit (e.g. Bag)"
+                        value={editForm.unit}
+                        onChange={e => setEditForm({...editForm, unit: e.target.value})}
+                      />
+                    </div>
                   ) : (
-                    <div className="font-bold">{product.name_en}</div>
-                  )}
-                </td>
-                <td className="px-8 py-4 font-gujarati text-lg">
-                  {isEditing === product.id ? (
-                    <input 
-                      className="w-full p-2 border rounded-lg"
-                      value={editForm.name_gu}
-                      onChange={e => setEditForm({...editForm, name_gu: e.target.value})}
-                    />
-                  ) : (
-                    product.name_gu
-                  )}
-                </td>
-                <td className="px-8 py-4 text-black/60">
-                  {isEditing === product.id ? (
-                    <input 
-                      className="w-24 p-2 border rounded-lg"
-                      value={editForm.unit}
-                      onChange={e => setEditForm({...editForm, unit: e.target.value})}
-                    />
-                  ) : (
-                    product.unit
+                    <div>
+                      <div className="font-bold">{product.name_en}</div>
+                      <div className="font-gujarati text-sm text-[#FF6321]">{product.name_gu}</div>
+                      <div className="text-[10px] text-black/40 uppercase tracking-widest mt-1">{product.unit}</div>
+                    </div>
                   )}
                 </td>
                 <td className="px-8 py-4 font-mono">
@@ -230,7 +226,7 @@ export default function Products() {
                     product.stock_quantity < 10 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                   )}>
                     <Package size={14} />
-                    {t('stock')}: {product.stock_quantity} {product.unit}
+                    {product.stock_quantity < 10 ? "Low Stock: " : "Stock: "} {product.stock_quantity} {product.unit}
                   </div>
                 </td>
                 <td className="px-8 py-4 text-right">
@@ -277,14 +273,25 @@ export default function Products() {
               </button>
             </div>
             <form onSubmit={handleAdd} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('product')}</label>
-                <input 
-                  required
-                  className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                  value={newProduct.name_en}
-                  onChange={e => setNewProduct({...newProduct, name_en: e.target.value})}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Product Name (EN)</label>
+                  <input 
+                    required
+                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                    value={newProduct.name_en}
+                    onChange={e => setNewProduct({...newProduct, name_en: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Product Name (GU)</label>
+                  <input 
+                    required
+                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321] font-gujarati"
+                    value={newProduct.name_gu}
+                    onChange={e => setNewProduct({...newProduct, name_gu: e.target.value})}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

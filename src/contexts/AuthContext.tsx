@@ -7,6 +7,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   isSales: boolean;
@@ -56,6 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const register = async (email: string, password: string, name: string) => {
+    const { token, user: userData } = await api.auth.register({ email, password, name });
+    localStorage.setItem('token', token);
+    setUser(userData);
+    setProfile({
+      uid: userData.id.toString(),
+      email: userData.email,
+      name: userData.name || '',
+      role: userData.role as 'admin' | 'sales'
+    });
+  };
+
   const logout = async () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -66,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isSales = profile?.role === 'sales' || isAdmin;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, isAdmin, isSales }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, register, logout, isAdmin, isSales }}>
       {children}
     </AuthContext.Provider>
   );

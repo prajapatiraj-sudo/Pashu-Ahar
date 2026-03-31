@@ -66,6 +66,11 @@ export default function App() {
     item.roles.includes(profile?.role || '')
   );
 
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F5F0]">
@@ -129,26 +134,6 @@ export default function App() {
         </nav>
 
         <div className="p-4 space-y-2">
-          {isSidebarOpen && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl mb-4">
-              <Globe size={16} className="text-white/40" />
-              <div className="flex gap-2">
-                {(['en', 'gu', 'hi'] as const).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => setLanguage(lang)}
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg transition-all",
-                      language === lang ? "bg-[#FF6321] text-white" : "text-white/40 hover:text-white"
-                    )}
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
           <button
             onClick={() => setCurrentView('new-invoice')}
             className={cn(
@@ -161,7 +146,7 @@ export default function App() {
           </button>
           
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className={cn(
               "w-full flex items-center gap-4 px-4 py-3 rounded-xl text-white/40 hover:text-rose-400 hover:bg-rose-400/10 transition-all",
               !isSidebarOpen && "justify-center px-0"
@@ -186,6 +171,24 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
+            {/* Language Toggle */}
+            <div className="flex items-center gap-1 bg-black/5 p-1 rounded-xl border border-black/5">
+              {(['en', 'gu', 'hi'] as const).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => setLanguage(lang)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    language === lang 
+                      ? "bg-[#FF6321] text-white shadow-sm" 
+                      : "text-black/40 hover:text-black hover:bg-black/5"
+                  )}
+                >
+                  {lang.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
               <input 

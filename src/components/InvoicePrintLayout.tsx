@@ -83,25 +83,28 @@ export default function InvoicePrintLayout({
         </div>
       </div>
 
-      <div className="flex items-baseline gap-2 mb-4">
-        <span className="font-bold text-2xl">શ્રી</span>
-        <span className="border-b-2 border-black border-dotted flex-1 text-2xl px-2 font-bold">
-          {selectedCustomer?.name || '....................................................................................................'}
-        </span>
-      </div>
-
-      <div className="flex items-baseline gap-4 mb-6">
-        <div className="flex items-baseline gap-2 flex-1">
-          <span className="font-bold text-2xl">ગામ</span>
-          <span className="border-b-2 border-black border-dotted flex-1 text-2xl px-2 font-bold">
-            {selectedCustomer?.village || selectedCustomer?.address || '...................................................................'}
-          </span>
+      {/* Customer Info Section - More robust and clearly labeled */}
+      <div className="space-y-4 mb-6">
+        <div className="flex items-baseline gap-4">
+          <span className="font-bold text-3xl shrink-0">શ્રી,</span>
+          <div className="border-b-2 border-black border-dotted flex-1 text-3xl px-4 font-bold min-h-[2.5rem] flex items-end">
+            {selectedCustomer?.name || '....................................................................................................'}
+          </div>
         </div>
-        <div className="flex items-baseline gap-2 w-[40%]">
-          <span className="font-bold text-2xl">મો.</span>
-          <span className="border-b-2 border-black border-dotted flex-1 text-2xl px-2 font-bold">
-            {selectedCustomer?.phone || '....................................'}
-          </span>
+
+        <div className="flex items-baseline gap-8">
+          <div className="flex items-baseline gap-4 flex-1">
+            <span className="font-bold text-3xl shrink-0">ગામ:</span>
+            <div className="border-b-2 border-black border-dotted flex-1 text-3xl px-4 font-bold min-h-[2.5rem] flex items-end">
+              {selectedCustomer?.village || '...................................................................'}
+            </div>
+          </div>
+          <div className="flex items-baseline gap-4 w-[45%]">
+            <span className="font-bold text-3xl shrink-0">મો.:</span>
+            <div className="border-b-2 border-black border-dotted flex-1 text-3xl px-4 font-bold min-h-[2.5rem] flex items-end">
+              {selectedCustomer?.phone || '....................................'}
+            </div>
+          </div>
         </div>
       </div>
 

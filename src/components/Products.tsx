@@ -158,9 +158,10 @@ export default function Products() {
             <tr className="bg-black/5 text-[11px] uppercase tracking-widest text-black/40 font-bold">
               <th className="px-8 py-4">{t('product')}</th>
               <th className="px-8 py-4">{t('unit')}</th>
-              <th className="px-8 py-4">{t('price')} (₹)</th>
+              <th className="px-8 py-4">Unit Price (₹)</th>
+              <th className="px-8 py-4">Selling Price (₹)</th>
               <th className="px-8 py-4">{t('stock')}</th>
-              <th className="px-8 py-4 text-right">{t('actions')}</th>
+              <th className="px-8 py-4 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -287,7 +288,17 @@ export default function Products() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('price')} (₹)</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Unit Price (₹)</label>
+                  <input 
+                    required
+                    type="number"
+                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                    value={newProduct.purchase_price}
+                    onChange={e => setNewProduct({...newProduct, purchase_price: parseFloat(e.target.value)})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Selling Price (₹)</label>
                   <input 
                     required
                     type="number"
@@ -296,6 +307,8 @@ export default function Products() {
                     onChange={e => setNewProduct({...newProduct, price: parseFloat(e.target.value)})}
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('stock')}</label>
                   <input 
@@ -306,15 +319,15 @@ export default function Products() {
                     onChange={e => setNewProduct({...newProduct, stock_quantity: parseInt(e.target.value)})}
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('unit')}</label>
-                <input 
-                  required
-                  className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                  value={newProduct.unit}
-                  onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
-                />
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('unit')}</label>
+                  <input 
+                    required
+                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                    value={newProduct.unit}
+                    onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                  />
+                </div>
               </div>
               <button type="submit" className="w-full bg-[#FF6321] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#E5591D] transition-all">
                 {t('save')}

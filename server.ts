@@ -4,6 +4,7 @@ import path from 'path';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db from './db.ts';
+import 'dotenv/config';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -45,6 +46,20 @@ async function startServer() {
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+  });
+
+  app.post('/api/auth/register', (req, res) => {
+    const { email, password, name } = req.body;
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    try {
+      const result = db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
+        .run(email, hashedPassword, name, 'sales');
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+    } catch (err: any) {
+      res.status(400).json({ error: 'Email already exists' });
+    }
   });
 
   app.get('/api/auth/me', authenticate, (req: any, res) => {
@@ -151,12 +166,25 @@ async function startServer() {
   app.get('/api/invoices', authenticate, (req, res) => {
     const deleted = req.query.deleted === 'true' ? 1 : 0;
     const invoices = db.prepare(`
-      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
+      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.village as customer_village
       FROM invoices i 
       JOIN customers c ON i.customer_id = c.id
       WHERE i.deleted = ?
       ORDER BY i.date DESC
-    `).all(deleted);
+    `).all(deleted) as any[];
+
+    // Include items for each invoice
+    const getItems = db.prepare(`
+      SELECT ii.*, p.name_en as name, p.name_gu 
+      FROM invoice_items ii
+      JOIN products p ON ii.product_id = p.id
+      WHERE ii.invoice_id = ?
+    `);
+
+    invoices.forEach(inv => {
+      inv.items = getItems.all(inv.id);
+    });
+
     res.json(invoices);
   });
 
@@ -336,7 +364,7 @@ async function startServer() {
         
         for (const table of tables) {
           db.prepare(`DELETE FROM ${table}`).run();
-          if (data[table] && Array.isArray(data[table])) {
+          if (data[table] && Array.isArray(data[table]) && data[table].length > 0) {
             const columns = Object.keys(data[table][0]);
             const placeholders = columns.map(() => '?').join(',');
             const insert = db.prepare(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`);

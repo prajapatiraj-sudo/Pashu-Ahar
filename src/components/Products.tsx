@@ -111,24 +111,55 @@ export default function Products() {
 
     try {
       const data = await parseExcelFile(file);
+      let successCount = 0;
+      let errorCount = 0;
+
       for (const row of data) {
-        const product = {
-          name_en: row['Product Name (EN)'] || '',
-          name_gu: row['Product Name (GU)'] || '',
-          unit: row['Unit'] || 'Bag',
-          purchase_price: parseFloat(row['Purchase Price']) || 0,
-          price: parseFloat(row['Selling Price']) || 0,
-          stock_quantity: parseInt(row['Stock Quantity']) || 0,
-          low_stock_threshold: parseInt(row['Alert Threshold']) || 10
-        };
-        await api.products.create(product);
+        try {
+          // Map columns and handle potential variations in naming
+          const nameEn = row['Product Name (EN)'] || row['Name'] || row['Product'] || '';
+          const nameGu = row['Product Name (GU)'] || row['Name Gujarati'] || '';
+          
+          if (!nameEn) {
+            console.warn('Skipping row due to missing product name:', row);
+            errorCount++;
+            continue;
+          }
+
+          const product = {
+            name_en: nameEn,
+            name_gu: nameGu,
+            unit: row['Unit'] || 'Bag',
+            purchase_price: parseFloat(row['Purchase Price']) || parseFloat(row['Cost']) || 0,
+            price: parseFloat(row['Selling Price']) || parseFloat(row['Rate']) || 0,
+            stock_quantity: parseInt(row['Stock Quantity']) || parseInt(row['Stock']) || 0,
+            low_stock_threshold: parseInt(row['Alert Threshold']) || parseInt(row['Threshold']) || 10
+          };
+          
+          await api.products.create(product);
+          successCount++;
+        } catch (rowError) {
+          console.error('Error importing row:', row, rowError);
+          errorCount++;
+        }
       }
+      
       fetchProducts();
-      setAlert({ type: 'success', title: t('success'), message: 'Products imported successfully!' });
+      if (errorCount === 0) {
+        setAlert({ type: 'success', title: t('success'), message: `Successfully imported ${successCount} products!` });
+      } else {
+        setAlert({ 
+          type: 'warning', 
+          title: 'Import Partial', 
+          message: `Imported ${successCount} products. Failed to import ${errorCount} rows. Check console for details.` 
+        });
+      }
     } catch (error) {
       console.error('Error importing products:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to import products. Check file format.' });
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to import products. Please ensure you are using the correct Excel format.' });
     }
+    // Reset input
+    e.target.value = '';
   };
 
   return (

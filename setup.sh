@@ -20,7 +20,10 @@ PROJECT_DIR="Pashu-Ahar"
 # Check if we are already inside the project directory
 if [ -f "package.json" ] && [ "$(basename "$PWD")" == "$PROJECT_DIR" ]; then
     echo "ℹ️ Already inside $PROJECT_DIR, pulling latest changes..."
+    # Stash local changes (like package-lock.json) to avoid pull conflicts
+    git stash
     git pull
+    git stash pop || true
 else
     if [ ! -d "$PROJECT_DIR" ]; then
         echo "📥 Cloning repository from $REPO_URL..."
@@ -28,7 +31,10 @@ else
     else
         echo "ℹ️ Directory $PROJECT_DIR already exists, pulling latest changes..."
         cd "$PROJECT_DIR"
+        # Stash local changes (like package-lock.json) to avoid pull conflicts
+        git stash
         git pull
+        git stash pop || true
         cd ..
     fi
     cd "$PROJECT_DIR"

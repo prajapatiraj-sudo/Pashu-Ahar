@@ -72,21 +72,48 @@ export default function Customers() {
 
     try {
       const data = await parseExcelFile(file);
+      let successCount = 0;
+      let errorCount = 0;
+
       for (const row of data) {
-        const customer = {
-          name: row['Name'] || '',
-          phone: row['Phone']?.toString() || '',
-          address: row['Address'] || '',
-          village: row['Village'] || ''
-        };
-        await api.customers.create(customer);
+        try {
+          const name = row['Name'] || row['Customer Name'] || row['Customer'] || '';
+          if (!name) {
+            console.warn('Skipping row due to missing customer name:', row);
+            errorCount++;
+            continue;
+          }
+
+          const customer = {
+            name: name,
+            phone: row['Phone']?.toString() || row['Mobile']?.toString() || row['Contact']?.toString() || '',
+            address: row['Address'] || '',
+            village: row['Village'] || ''
+          };
+          await api.customers.create(customer);
+          successCount++;
+        } catch (rowError) {
+          console.error('Error importing row:', row, rowError);
+          errorCount++;
+        }
       }
+      
       fetchCustomers();
-      setAlert({ type: 'success', title: t('success'), message: 'Customers imported successfully!' });
+      if (errorCount === 0) {
+        setAlert({ type: 'success', title: t('success'), message: `Successfully imported ${successCount} customers!` });
+      } else {
+        setAlert({ 
+          type: 'warning', 
+          title: 'Import Partial', 
+          message: `Imported ${successCount} customers. Failed to import ${errorCount} rows. Check console for details.` 
+        });
+      }
     } catch (error) {
       console.error('Error importing customers:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to import customers. Check file format.' });
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to import customers. Please ensure you are using the correct Excel format.' });
     }
+    // Reset input
+    e.target.value = '';
   };
 
   return (

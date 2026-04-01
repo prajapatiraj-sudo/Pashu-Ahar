@@ -49,6 +49,7 @@ export default function App() {
   const { language, setLanguage, t } = useLanguage();
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const navItems = [
     { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard, roles: ['admin', 'sales'] },
@@ -140,7 +141,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4 space-y-2">
+        <div className="p-4">
           <button
             onClick={() => setCurrentView('new-invoice')}
             className={cn(
@@ -150,17 +151,6 @@ export default function App() {
           >
             <PlusCircle size={20} />
             {isSidebarOpen && <span>{t('newInvoice')}</span>}
-          </button>
-          
-          <button
-            onClick={handleLogout}
-            className={cn(
-              "w-full flex items-center gap-4 px-4 py-3 rounded-xl text-white/40 hover:text-rose-400 hover:bg-rose-400/10 transition-all",
-              !isSidebarOpen && "justify-center px-0"
-            )}
-          >
-            <LogOut size={20} />
-            {isSidebarOpen && <span className="font-medium">{t('logout')}</span>}
           </button>
         </div>
       </aside>
@@ -204,14 +194,44 @@ export default function App() {
                 className="pl-10 pr-4 py-2 bg-black/5 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all w-64"
               />
             </div>
-            <div className="flex items-center gap-3 bg-black/5 pl-2 pr-4 py-1.5 rounded-2xl border border-black/5">
-              <div className="w-8 h-8 rounded-xl bg-[#141414] text-white flex items-center justify-center font-bold text-xs">
-                {profile?.name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-xs font-bold leading-tight">{profile?.name || user.email}</div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#FF6321] leading-tight">{profile?.role}</div>
-              </div>
+            <div className="relative group">
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center gap-3 bg-black/5 pl-2 pr-4 py-1.5 rounded-2xl border border-black/5 hover:bg-black/10 transition-all"
+              >
+                <div className="w-8 h-8 rounded-xl bg-[#141414] text-white flex items-center justify-center font-bold text-xs">
+                  {profile?.name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <div className="text-xs font-bold leading-tight">{profile?.name || user.email}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#FF6321] leading-tight">{profile?.role}</div>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsProfileOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-black/5 p-2 z-50"
+                    >
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-rose-500 hover:bg-rose-50 transition-all font-bold text-sm"
+                      >
+                        <LogOut size={18} />
+                        <span>{t('logout')}</span>
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>
@@ -226,7 +246,7 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {currentView === 'dashboard' && <Dashboard onNavigate={setCurrentView} />}
-              {currentView === 'products' && <Products />}
+              {currentView === 'products' && <Products userRole={profile?.role} />}
               {currentView === 'customers' && <Customers />}
               {currentView === 'invoices' && <Invoices />}
               {currentView === 'new-invoice' && <NewInvoice onComplete={() => setCurrentView('invoices')} />}

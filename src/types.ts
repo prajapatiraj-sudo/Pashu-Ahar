@@ -7,6 +7,7 @@ export interface Product {
   price: number;
   purchase_price: number;
   stock_quantity: number;
+  low_stock_threshold?: number;
   deleted?: boolean;
   deletedAt?: any;
 }

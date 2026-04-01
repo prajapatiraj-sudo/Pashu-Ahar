@@ -8,7 +8,7 @@ import { downloadSampleExcel, parseExcelFile } from '../lib/excel';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
-export default function Products() {
+export default function Products({ userRole }: { userRole?: string }) {
   const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [isEditing, setIsEditing] = useState<string | number | null>(null);
@@ -17,8 +17,10 @@ export default function Products() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProduct, setNewProduct] = useState({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0, low_stock_threshold: 10 });
   
-  const [alert, setAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
+  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; title: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | number | null>(null);
+
+  const isAdmin = userRole === 'admin';
 
   useEffect(() => {
     fetchProducts();
@@ -35,7 +37,10 @@ export default function Products() {
 
   const handleEdit = (product: Product) => {
     setIsEditing(product.id);
-    setEditForm(product);
+    setEditForm({
+      ...product,
+      low_stock_threshold: product.low_stock_threshold || 10
+    });
   };
 
   const handleSave = async (id: string | number) => {
@@ -301,7 +306,7 @@ export default function Products() {
                     <Package size={14} />
                     {product.stock_quantity < (product.low_stock_threshold || 10) ? "Low Stock: " : "Stock: "} {product.stock_quantity} {product.unit}
                   </div>
-                  {isEditing === product.id && (
+                  {isEditing === product.id && isAdmin && (
                     <div className="mt-2">
                       <label className="text-[10px] uppercase font-bold text-black/40">Alert Threshold</label>
                       <input 
@@ -410,16 +415,18 @@ export default function Products() {
                     onChange={e => setNewProduct({...newProduct, stock_quantity: parseInt(e.target.value)})}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Alert Threshold</label>
-                  <input 
-                    required
-                    type="number"
-                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
-                    value={newProduct.low_stock_threshold}
-                    onChange={e => setNewProduct({...newProduct, low_stock_threshold: parseInt(e.target.value)})}
-                  />
-                </div>
+                {isAdmin && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Alert Threshold</label>
+                    <input 
+                      required
+                      type="number"
+                      className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                      value={newProduct.low_stock_threshold}
+                      onChange={e => setNewProduct({...newProduct, low_stock_threshold: parseInt(e.target.value)})}
+                    />
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 gap-4">
                 <div>

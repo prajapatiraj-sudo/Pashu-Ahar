@@ -75,16 +75,16 @@ async function startServer() {
   });
 
   app.post('/api/products', authenticate, isAdmin, (req, res) => {
-    const { name_en, name_gu, unit, price, purchase_price, stock_quantity } = req.body;
-    const result = db.prepare('INSERT INTO products (name_en, name_gu, unit, price, purchase_price, stock_quantity) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(name_en, name_gu, unit, price, purchase_price, stock_quantity);
+    const { name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold } = req.body;
+    const result = db.prepare('INSERT INTO products (name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold || 10);
     res.json({ id: result.lastInsertRowid });
   });
 
   app.put('/api/products/:id', authenticate, isAdmin, (req, res) => {
-    const { name_en, name_gu, unit, price, purchase_price, stock_quantity } = req.body;
-    db.prepare('UPDATE products SET name_en = ?, name_gu = ?, unit = ?, price = ?, purchase_price = ?, stock_quantity = ? WHERE id = ?')
-      .run(name_en, name_gu, unit, price, purchase_price, stock_quantity, req.params.id);
+    const { name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold } = req.body;
+    db.prepare('UPDATE products SET name_en = ?, name_gu = ?, unit = ?, price = ?, purchase_price = ?, stock_quantity = ?, low_stock_threshold = ? WHERE id = ?')
+      .run(name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold, req.params.id);
     res.json({ success: true });
   });
 

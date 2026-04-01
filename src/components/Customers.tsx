@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Phone, MapPin, CreditCard, ChevronRight, X, Eye } from 'lucide-react';
+import { Plus, Search, Phone, MapPin, CreditCard, ChevronRight, X, Eye, Download, Upload } from 'lucide-react';
 import CustomerLedger from './CustomerLedger';
 import { AnimatePresence, motion } from 'motion/react';
 import { api } from '../lib/api';
 import type { Customer } from '../types';
 import { cn } from '../lib/utils';
 import { ConfirmModal, AlertModal } from './ui/Modal';
+import { downloadSampleExcel, parseExcelFile } from '../lib/excel';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -65,6 +66,29 @@ export default function Customers() {
     (c.village && c.village.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await parseExcelFile(file);
+      for (const row of data) {
+        const customer = {
+          name: row['Name'] || '',
+          phone: row['Phone']?.toString() || '',
+          address: row['Address'] || '',
+          village: row['Village'] || ''
+        };
+        await api.customers.create(customer);
+      }
+      fetchCustomers();
+      setAlert({ type: 'success', title: t('success'), message: 'Customers imported successfully!' });
+    } catch (error) {
+      console.error('Error importing customers:', error);
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to import customers. Check file format.' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <AlertModal
@@ -94,13 +118,28 @@ export default function Customers() {
             className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
           />
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
-        >
-          <Plus size={20} />
-          {t('addCustomer')}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={() => downloadSampleExcel('customers')}
+            className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
+            title="Download Sample Excel"
+          >
+            <Download size={20} />
+            Sample
+          </button>
+          <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
+            <Upload size={20} />
+            Import
+            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
+          </label>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
+          >
+            <Plus size={20} />
+            {t('addCustomer')}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

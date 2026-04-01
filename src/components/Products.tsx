@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Save, X, Package, Search } from 'lucide-react';
+import { Plus, Edit2, Save, X, Package, Search, Download, Upload } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Product } from '../types';
 import { cn } from '../lib/utils';
 import { ConfirmModal, AlertModal } from './ui/Modal';
+import { downloadSampleExcel, parseExcelFile } from '../lib/excel';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -14,7 +15,7 @@ export default function Products() {
   const [editForm, setEditForm] = useState<Partial<Product>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0 });
+  const [newProduct, setNewProduct] = useState({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0, low_stock_threshold: 10 });
   
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | number | null>(null);
@@ -66,7 +67,7 @@ export default function Products() {
     try {
       await api.products.create(newProduct);
       setShowAddModal(false);
-      setNewProduct({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0 });
+      setNewProduct({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0, low_stock_threshold: 10 });
       fetchProducts();
       setAlert({ type: 'success', title: t('success'), message: 'Product added successfully' });
     } catch (error) {
@@ -101,6 +102,32 @@ export default function Products() {
     } catch (error) {
       console.error('Error seeding products:', error);
       setAlert({ type: 'error', title: t('error'), message: 'Failed to seed products.' });
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await parseExcelFile(file);
+      for (const row of data) {
+        const product = {
+          name_en: row['Product Name (EN)'] || '',
+          name_gu: row['Product Name (GU)'] || '',
+          unit: row['Unit'] || 'Bag',
+          purchase_price: parseFloat(row['Purchase Price']) || 0,
+          price: parseFloat(row['Selling Price']) || 0,
+          stock_quantity: parseInt(row['Stock Quantity']) || 0,
+          low_stock_threshold: parseInt(row['Alert Threshold']) || 10
+        };
+        await api.products.create(product);
+      }
+      fetchProducts();
+      setAlert({ type: 'success', title: t('success'), message: 'Products imported successfully!' });
+    } catch (error) {
+      console.error('Error importing products:', error);
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to import products. Check file format.' });
     }
   };
 
@@ -143,13 +170,28 @@ export default function Products() {
             </button>
           )}
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
-        >
-          <Plus size={20} />
-          {t('addProduct')}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={() => downloadSampleExcel('products')}
+            className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
+            title="Download Sample Excel"
+          >
+            <Download size={20} />
+            Sample
+          </button>
+          <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
+            <Upload size={20} />
+            Import
+            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
+          </label>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
+          >
+            <Plus size={20} />
+            {t('addProduct')}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-black/5 overflow-hidden">
@@ -223,11 +265,22 @@ export default function Products() {
                 <td className="px-8 py-4">
                   <div className={cn(
                     "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
-                    product.stock_quantity < 10 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                    product.stock_quantity < (product.low_stock_threshold || 10) ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                   )}>
                     <Package size={14} />
-                    {product.stock_quantity < 10 ? "Low Stock: " : "Stock: "} {product.stock_quantity} {product.unit}
+                    {product.stock_quantity < (product.low_stock_threshold || 10) ? "Low Stock: " : "Stock: "} {product.stock_quantity} {product.unit}
                   </div>
+                  {isEditing === product.id && (
+                    <div className="mt-2">
+                      <label className="text-[10px] uppercase font-bold text-black/40">Alert Threshold</label>
+                      <input 
+                        type="number"
+                        className="w-full p-2 border rounded-lg mt-1"
+                        value={editForm.low_stock_threshold}
+                        onChange={e => setEditForm({...editForm, low_stock_threshold: parseInt(e.target.value)})}
+                      />
+                    </div>
+                  )}
                 </td>
                 <td className="px-8 py-4 text-right">
                   {isEditing === product.id ? (
@@ -326,6 +379,18 @@ export default function Products() {
                     onChange={e => setNewProduct({...newProduct, stock_quantity: parseInt(e.target.value)})}
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">Alert Threshold</label>
+                  <input 
+                    required
+                    type="number"
+                    className="w-full p-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF6321]"
+                    value={newProduct.low_stock_threshold}
+                    onChange={e => setNewProduct({...newProduct, low_stock_threshold: parseInt(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('unit')}</label>
                   <input 

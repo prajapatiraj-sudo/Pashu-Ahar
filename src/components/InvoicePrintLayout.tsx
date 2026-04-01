@@ -66,7 +66,7 @@ export default function InvoicePrintLayout({
   }
 
   return (
-    <div className="bg-white p-4 md:p-10 text-black font-gujarati w-[210mm] mx-auto min-h-[297mm] flex flex-col border border-black/10 print:border-0 print:m-0 print:p-[10mm] print:w-full print:min-h-screen">
+    <div className="bg-white p-4 md:p-10 text-black font-gujarati w-[210mm] mx-auto min-h-[297mm] flex flex-col border border-black/10 print:border-0 print:m-0 print:p-[5mm] print:w-[200mm] print:min-h-[287mm] print:mx-auto">
       {/* Header */}
       <div className="flex justify-between items-start mb-1">
         <div className="text-xl font-bold">પરીક્ષિત ડી. ડાકે</div>

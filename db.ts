@@ -15,6 +15,7 @@ db.exec(`
     price REAL DEFAULT 0,
     purchase_price REAL DEFAULT 0,
     stock_quantity INTEGER DEFAULT 0,
+    low_stock_threshold INTEGER DEFAULT 10,
     deleted INTEGER DEFAULT 0,
     deletedAt TEXT
   );

@@ -1,6 +1,6 @@
 # Krushnam Management System
 
-A management system for Pashu Ahar (Cattle Feed) business.
+A management system for Pashu Ahar (Cattle Feed) business. Powered by Ruhi Computer.
 
 ## 🚀 Quick Setup
 

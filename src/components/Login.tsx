@@ -134,6 +134,9 @@ export default function Login() {
         <p className="mt-8 text-[10px] text-black/30 leading-relaxed uppercase tracking-widest font-bold">
           Authorized Personnel Only
         </p>
+        <div className="mt-2 text-[10px] text-black/20 font-medium uppercase tracking-widest">
+          Powered by Ruhi Computer
+        </div>
       </motion.div>
     </div>
   );

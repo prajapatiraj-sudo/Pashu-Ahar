@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -19,7 +19,7 @@ import type { Product, Customer, Invoice } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -33,6 +33,8 @@ export default function Reports() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchReportsData();
@@ -72,7 +74,7 @@ export default function Reports() {
   };
 
   const getBestSelling = () => {
-    const salesMap: Record<string, { name: string, quantity: number, revenue: number }> = {};
+    const salesMap: Record<string, { name: string, name_gu?: string, quantity: number, revenue: number }> = {};
     
     invoices.forEach(inv => {
       if (inv.items && Array.isArray(inv.items)) {
@@ -81,7 +83,14 @@ export default function Reports() {
           if (!productId) return;
           
           if (!salesMap[productId]) {
-            salesMap[productId] = { name: item.name, quantity: 0, revenue: 0 };
+            // Find product to get Gujarati name
+            const product = products.find(p => p.id.toString() === productId);
+            salesMap[productId] = { 
+              name: item.name, 
+              name_gu: product?.name_gu,
+              quantity: 0, 
+              revenue: 0 
+            };
           }
           salesMap[productId].quantity += (item.quantity || 0);
           salesMap[productId].revenue += (item.amount || 0);
@@ -94,100 +103,67 @@ export default function Reports() {
       .slice(0, 5);
   };
 
-  const handleDownload = () => {
-    const doc = new jsPDF();
-    const title = reportTabs.find(t => t.id === activeReport)?.label || 'Report';
-    const dateStr = format(new Date(), 'dd MMM yyyy, hh:mm a');
+  const handleDownload = async () => {
+    if (!reportRef.current || isGeneratingPDF) return;
 
-    // Header
-    doc.setFontSize(20);
-    doc.setTextColor(255, 99, 33); // #FF6321
-    doc.text('Krushnam Management System', 14, 22);
-    
-    doc.setFontSize(16);
-    doc.setTextColor(20, 20, 20);
-    doc.text(title, 14, 32);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generated on: ${dateStr}`, 14, 38);
-    doc.line(14, 42, 196, 42);
+    setIsGeneratingPDF(true);
+    try {
+      // Ensure fonts are loaded before capturing
+      await document.fonts.ready;
+      
+      // Wait for a moment to ensure all elements are rendered and animations finished
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-    if (activeReport === 'profit-loss') {
-      const stats = calculateProfitLoss();
-      autoTable(doc, {
-        startY: 50,
-        head: [['Metric', 'Value']],
-        body: [
-          ['Total Revenue', `Rs. ${stats.totalSales.toLocaleString()}`],
-          ['Total Expenses', `Rs. ${stats.totalCost.toLocaleString()}`],
-          ['Net Profit', `Rs. ${stats.profit.toLocaleString()}`],
-        ],
-        theme: 'striped',
-        headStyles: { fillColor: [20, 20, 20] },
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: reportRef.current.scrollWidth,
+        onclone: (clonedDoc) => {
+          // Ensure the cloned document has the font loaded
+          const style = clonedDoc.createElement('style');
+          style.innerHTML = `
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
+            .font-gujarati { font-family: 'Noto Sans Gujarati', sans-serif !important; }
+          `;
+          clonedDoc.head.appendChild(style);
+        }
       });
-    } else if (activeReport === 'outstanding') {
-      const data = customers
-        .filter(c => c.total_outstanding > 0)
-        .sort((a, b) => b.total_outstanding - a.total_outstanding)
-        .map(c => [c.name, c.phone, `Rs. ${c.total_outstanding.toLocaleString()}`]);
 
-      autoTable(doc, {
-        startY: 50,
-        head: [['Customer', 'Phone', 'Outstanding']],
-        body: data,
-        theme: 'striped',
-        headStyles: { fillColor: [20, 20, 20] },
-      });
-    } else if (activeReport === 'stock') {
-      const data = products.map(p => [
-        p.name_en,
-        p.name_gu,
-        `${p.stock_quantity} ${p.unit}`,
-        `Rs. ${(p.stock_quantity * (p.purchase_price || 0)).toLocaleString()}`
-      ]);
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
 
-      autoTable(doc, {
-        startY: 50,
-        head: [['Product', 'Gujarati Name', 'Stock', 'Value']],
-        body: data,
-        theme: 'striped',
-        headStyles: { fillColor: [20, 20, 20] },
-      });
-    } else if (activeReport === 'best-selling') {
-      const data = getBestSelling().map((item, i) => [
-        i + 1,
-        item.name,
-        item.quantity,
-        `Rs. ${item.revenue.toLocaleString()}`
-      ]);
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
 
-      autoTable(doc, {
-        startY: 50,
-        head: [['Rank', 'Product', 'Units Sold', 'Revenue']],
-        body: data,
-        theme: 'striped',
-        headStyles: { fillColor: [20, 20, 20] },
-      });
-    } else if (activeReport === 'low-stock') {
-      const data = products
-        .filter(p => p.stock_quantity < 10)
-        .map(p => [p.name_en, p.name_gu, p.stock_quantity, p.unit]);
+      // Add subsequent pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
 
-      autoTable(doc, {
-        startY: 50,
-        head: [['Product', 'Gujarati Name', 'Stock', 'Unit']],
-        body: data,
-        theme: 'striped',
-        headStyles: { fillColor: [20, 20, 20] },
-      });
+      pdf.save(`${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    } finally {
+      setIsGeneratingPDF(false);
     }
-
-    doc.save(`${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const shareOnWhatsApp = (title: string, content: string) => {
-    const text = `*${title}*\n\n${content}\n\nGenerated from Krushnam App`;
+    const text = `*${title}*\n\n${content}\n\nPowered by Ruhi Computer`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -205,7 +181,7 @@ export default function Reports() {
     } else if (activeReport === 'low-stock') {
       title = "Low Stock Alert Report";
       content = products
-        .filter(p => p.stock_quantity < 10)
+        .filter(p => p.stock_quantity < (p.low_stock_threshold || 10))
         .map(p => `${p.name_en}: ${p.stock_quantity} ${p.unit} left`)
         .join('\n');
     } else if (activeReport === 'stock') {
@@ -258,7 +234,7 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-black/5 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-black/5 overflow-hidden" ref={reportRef}>
         <div className="p-8 border-b border-black/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-[#FF6321]/10 flex items-center justify-center text-[#FF6321]">
@@ -271,7 +247,7 @@ export default function Reports() {
               <p className="text-sm text-black/40 font-medium">Report generated on {format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 print:hidden">
             <button 
               onClick={handleShare}
               className="flex items-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-2xl font-bold hover:brightness-110 transition-all shadow-lg shadow-[#25D366]/20"
@@ -281,10 +257,18 @@ export default function Reports() {
             </button>
             <button 
               onClick={handleDownload}
-              className="flex items-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all shadow-lg shadow-black/10"
+              disabled={isGeneratingPDF}
+              className={cn(
+                "flex items-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all shadow-lg shadow-black/10",
+                isGeneratingPDF && "opacity-50 cursor-not-allowed"
+              )}
             >
-              <Download size={18} />
-              {t('downloadPDF')}
+              {isGeneratingPDF ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+              ) : (
+                <Download size={18} />
+              )}
+              {isGeneratingPDF ? "Generating..." : t('downloadPDF')}
             </button>
           </div>
         </div>
@@ -391,67 +375,83 @@ export default function Reports() {
 
               {activeReport === 'stock' && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {products.map(p => (
-                      <div key={p.id} className="p-8 rounded-[2rem] border border-black/5 hover:border-[#FF6321]/30 transition-all group bg-white shadow-sm hover:shadow-xl hover:shadow-black/5">
-                        <div className="flex justify-between items-start mb-6">
-                          <div className="w-14 h-14 rounded-2xl bg-black/5 flex items-center justify-center text-black/40 group-hover:bg-[#FF6321]/10 group-hover:text-[#FF6321] transition-all">
-                            <Package size={28} />
-                          </div>
-                          <div className={cn(
-                            "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest",
-                            p.stock_quantity < (p.low_stock_threshold || 10) ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                          )}>
-                            {p.stock_quantity < (p.low_stock_threshold || 10) ? t('lowStock') : t('inStock')}
-                          </div>
-                        </div>
-                        <h3 className="font-bold text-xl mb-1">{p.name_en}</h3>
-                        <p className="text-sm text-black/40 font-gujarati mb-6">{p.name_gu}</p>
-                        <div className="flex justify-between items-end pt-6 border-t border-black/5">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30 mb-1">{t('currentStock')}</div>
-                            <div className="text-2xl font-bold">{p.stock_quantity} {p.unit}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30 mb-1">{t('stockValue')}</div>
-                            <div className="text-2xl font-bold text-indigo-600">₹{(p.stock_quantity * (p.purchase_price || 0)).toLocaleString()}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-hidden rounded-3xl border border-black/5">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-black/5 text-[10px] uppercase tracking-widest text-black/40 font-bold">
+                          <th className="px-8 py-5">{t('product')}</th>
+                          <th className="px-8 py-5">Gujarati Name</th>
+                          <th className="px-8 py-5 text-center">{t('currentStock')}</th>
+                          <th className="px-8 py-5 text-right">{t('stockValue')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {products
+                          .filter(p => p.name_en.toLowerCase().includes(searchTerm.toLowerCase()) || p.name_gu.toLowerCase().includes(searchTerm.toLowerCase()))
+                          .map(p => (
+                            <tr key={p.id} className="hover:bg-black/[0.02] transition-colors">
+                              <td className="px-8 py-5">
+                                <div className="font-bold">{p.name_en}</div>
+                                <div className="text-[10px] text-black/40 uppercase tracking-widest mt-1">{p.unit}</div>
+                              </td>
+                              <td className="px-8 py-5 font-gujarati text-[#FF6321] font-medium">{p.name_gu}</td>
+                              <td className="px-8 py-5 text-center">
+                                <div className={cn(
+                                  "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
+                                  p.stock_quantity < (p.low_stock_threshold || 10) ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                                )}>
+                                  {p.stock_quantity} {p.unit}
+                                </div>
+                              </td>
+                              <td className="px-8 py-5 text-right font-mono font-bold text-indigo-600">
+                                ₹{(p.stock_quantity * (p.purchase_price || 0)).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
 
               {activeReport === 'best-selling' && (
                 <div className="space-y-8">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                      {getBestSelling().map((item, i) => (
-                        <div key={i} className="flex items-center gap-6 p-6 rounded-3xl border border-black/5 hover:bg-black/[0.02] transition-all bg-white">
-                          <div className="w-12 h-12 rounded-2xl bg-[#FF6321]/10 flex items-center justify-center text-[#FF6321] font-bold text-lg">
-                            {i + 1}
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-bold text-lg">{item.name}</div>
-                            <div className="text-sm text-black/40">{item.quantity} units sold</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-emerald-600 text-lg">₹{item.revenue.toLocaleString()}</div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{t('revenue')}</div>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="overflow-hidden rounded-3xl border border-black/5">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-black/5 text-[10px] uppercase tracking-widest text-black/40 font-bold">
+                          <th className="px-8 py-5">Rank</th>
+                          <th className="px-8 py-5">{t('product')}</th>
+                          <th className="px-8 py-5">Gujarati Name</th>
+                          <th className="px-8 py-5 text-center">Units Sold</th>
+                          <th className="px-8 py-5 text-right">{t('revenue')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {getBestSelling().map((item, i) => (
+                          <tr key={i} className="hover:bg-black/[0.02] transition-colors">
+                            <td className="px-8 py-5">
+                              <div className="w-8 h-8 rounded-lg bg-[#FF6321]/10 flex items-center justify-center text-[#FF6321] font-bold text-xs">
+                                {i + 1}
+                              </div>
+                            </td>
+                            <td className="px-8 py-5 font-bold">{item.name}</td>
+                            <td className="px-8 py-5 font-gujarati text-black/40">{item.name_gu}</td>
+                            <td className="px-8 py-5 text-center font-medium">{item.quantity}</td>
+                            <td className="px-8 py-5 text-right font-mono font-bold text-emerald-600">₹{item.revenue.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="bg-[#141414] rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center text-white shadow-2xl shadow-black/20">
+                    <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-[#FF6321] mb-8 shadow-xl backdrop-blur-sm">
+                      <TrendingUp size={48} />
                     </div>
-                    <div className="bg-[#141414] rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center text-white shadow-2xl shadow-black/20">
-                      <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center text-[#FF6321] mb-8 shadow-xl backdrop-blur-sm">
-                        <TrendingUp size={48} />
-                      </div>
-                      <h3 className="text-2xl font-bold mb-3">Top Performer</h3>
-                      <p className="text-white/60 max-w-xs mx-auto leading-relaxed">
-                        <span className="text-white font-bold">{getBestSelling()[0]?.name}</span> is your best selling product this month with <span className="text-[#FF6321] font-bold">{getBestSelling()[0]?.quantity}</span> units sold.
-                      </p>
-                    </div>
+                    <h3 className="text-2xl font-bold mb-3">Top Performer</h3>
+                    <p className="text-white/60 max-w-xs mx-auto leading-relaxed">
+                      <span className="text-white font-bold">{getBestSelling()[0]?.name}</span> is your best selling product this month with <span className="text-[#FF6321] font-bold">{getBestSelling()[0]?.quantity}</span> units sold.
+                    </p>
                   </div>
                 </div>
               )}
@@ -467,26 +467,32 @@ export default function Reports() {
                       <p className="text-sm opacity-80">{t('lowStockAlert')}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {products.filter(p => p.stock_quantity < (p.low_stock_threshold || 10)).map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-8 rounded-3xl border border-rose-100 bg-white shadow-sm hover:shadow-md transition-all">
-                        <div className="flex items-center gap-6">
-                          <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500">
-                            <Package size={32} />
-                          </div>
-                          <div>
-                            <div className="font-bold text-lg">{p.name_en}</div>
-                            <div className="text-sm text-black/40 font-gujarati">{p.name_gu}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-3xl font-bold text-rose-600">{p.stock_quantity}</div>
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{p.unit}s left</div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-hidden rounded-3xl border border-black/5">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-black/5 text-[10px] uppercase tracking-widest text-black/40 font-bold">
+                          <th className="px-8 py-5">{t('product')}</th>
+                          <th className="px-8 py-5">Gujarati Name</th>
+                          <th className="px-8 py-5 text-right">{t('currentStock')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {products
+                          .filter(p => p.stock_quantity < (p.low_stock_threshold || 10))
+                          .map(p => (
+                            <tr key={p.id} className="hover:bg-black/[0.02] transition-colors">
+                              <td className="px-8 py-5 font-bold">{p.name_en}</td>
+                              <td className="px-8 py-5 font-gujarati text-black/40">{p.name_gu}</td>
+                              <td className="px-8 py-5 text-right">
+                                <div className="text-xl font-bold text-rose-600">{p.stock_quantity}</div>
+                                <div className="text-[10px] font-bold uppercase tracking-widest text-black/30">{p.unit}s left</div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
                     {products.filter(p => p.stock_quantity < (p.low_stock_threshold || 10)).length === 0 && (
-                      <div className="col-span-full py-20 text-center text-black/40 bg-black/5 rounded-[2rem] border border-dashed border-black/10">
+                      <div className="py-20 text-center text-black/40 bg-black/5">
                         <Package size={48} className="mx-auto mb-4 opacity-20" />
                         <p className="font-bold">All stock levels are healthy.</p>
                       </div>

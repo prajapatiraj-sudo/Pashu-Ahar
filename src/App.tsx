@@ -141,17 +141,23 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4">
+        <div className="p-4 border-t border-white/5">
           <button
             onClick={() => setCurrentView('new-invoice')}
             className={cn(
-              "w-full flex items-center justify-center gap-2 bg-[#FF6321] text-white py-3 rounded-xl font-bold shadow-lg hover:bg-[#E5591D] transition-all mb-2",
+              "w-full flex items-center justify-center gap-2 bg-[#FF6321] text-white py-3 rounded-xl font-bold shadow-lg hover:bg-[#E5591D] transition-all mb-4",
               !isSidebarOpen && "px-0"
             )}
           >
             <PlusCircle size={20} />
             {isSidebarOpen && <span>{t('newInvoice')}</span>}
           </button>
+          <div className={cn(
+            "text-[10px] text-white/30 font-medium uppercase tracking-widest text-center",
+            !isSidebarOpen && "hidden"
+          )}>
+            Powered by Ruhi Computer
+          </div>
         </div>
       </aside>
 

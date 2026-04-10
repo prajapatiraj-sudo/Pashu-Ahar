@@ -131,29 +131,27 @@ export default function Reports() {
           tableData = customers
             .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
             .sort((a, b) => b.total_outstanding - a.total_outstanding)
-            .map(c => [c.name, c.phone, c.total_outstanding.toLocaleString()]);
+            .map(c => [c.name, c.phone, (c.total_outstanding || 0).toLocaleString()]);
         } else if (activeReport === 'stock') {
-          columns = ['Product Name', 'Gujarati Name', 'Stock', 'Unit', 'Value (₹)'];
+          columns = ['Product Name', 'Stock', 'Unit', 'Value (₹)'];
           tableData = products
             .filter(p => p.name_en.toLowerCase().includes(searchTerm.toLowerCase()) || p.name_gu.toLowerCase().includes(searchTerm.toLowerCase()))
             .map(p => [
               p.name_en, 
-              p.name_gu, 
               p.stock_quantity, 
               p.unit, 
               (p.stock_quantity * (p.purchase_price || 0)).toLocaleString()
             ]);
         } else if (activeReport === 'low-stock') {
-          columns = ['Product Name', 'Gujarati Name', 'Current Stock', 'Threshold'];
+          columns = ['Product Name', 'Current Stock', 'Threshold'];
           tableData = products
             .filter(p => p.stock_quantity < (p.low_stock_threshold || 10))
-            .map(p => [p.name_en, p.name_gu, p.stock_quantity, p.low_stock_threshold || 10]);
+            .map(p => [p.name_en, p.stock_quantity, p.low_stock_threshold || 10]);
         } else if (activeReport === 'best-selling') {
-          columns = ['Rank', 'Product Name', 'Gujarati Name', 'Units Sold', 'Revenue (₹)'];
+          columns = ['Rank', 'Product Name', 'Units Sold', 'Revenue (₹)'];
           tableData = getBestSelling().map((item, i) => [
             i + 1,
             item.name,
-            item.name_gu || '',
             item.quantity,
             item.revenue.toLocaleString()
           ]);

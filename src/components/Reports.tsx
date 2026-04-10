@@ -112,26 +112,33 @@ export default function Reports() {
       await document.fonts.ready;
       
       // Wait for a moment to ensure all elements are rendered and animations finished
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const canvas = await html2canvas(reportRef.current, {
-        scale: 2, // Higher scale for better quality
+        scale: 3, // Higher scale for better quality
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         windowWidth: reportRef.current.scrollWidth,
         onclone: (clonedDoc) => {
-          // Ensure the cloned document has the font loaded
+          // Ensure the cloned document has the font loaded and applied
           const style = clonedDoc.createElement('style');
           style.innerHTML = `
             @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
             .font-gujarati { font-family: 'Noto Sans Gujarati', sans-serif !important; }
+            * { -webkit-font-smoothing: antialiased; }
           `;
           clonedDoc.head.appendChild(style);
+          
+          // Force apply font to Gujarati elements
+          const gujElements = clonedDoc.querySelectorAll('.font-gujarati');
+          gujElements.forEach((el: any) => {
+            el.style.fontFamily = "'Noto Sans Gujarati', sans-serif";
+          });
         }
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -143,20 +150,21 @@ export default function Reports() {
       let position = 0;
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
 
       // Add subsequent pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
       }
 
       pdf.save(`${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -395,12 +403,23 @@ export default function Reports() {
                                 <div className="text-[10px] text-black/40 uppercase tracking-widest mt-1">{p.unit}</div>
                               </td>
                               <td className="px-8 py-5 font-gujarati text-[#FF6321] font-medium">{p.name_gu}</td>
-                              <td className="px-8 py-5 text-center">
-                                <div className={cn(
-                                  "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
-                                  p.stock_quantity < (p.low_stock_threshold || 10) ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                                )}>
-                                  {p.stock_quantity} {p.unit}
+                              <td className="px-8 py-5">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={cn(
+                                      "text-lg font-bold font-mono",
+                                      p.stock_quantity < (p.low_stock_threshold || 10) ? "text-rose-600" : "text-emerald-600"
+                                    )}>
+                                      {p.stock_quantity}
+                                    </span>
+                                    <span className="text-[10px] uppercase tracking-widest text-black/40 font-bold">{p.unit}s</span>
+                                  </div>
+                                  {p.stock_quantity < (p.low_stock_threshold || 10) && (
+                                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 text-[10px] font-bold w-fit uppercase tracking-wider">
+                                      <AlertCircle size={10} />
+                                      Low Stock
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-8 py-5 text-right font-mono font-bold text-indigo-600">

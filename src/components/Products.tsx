@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Save, X, Package, Search, Download, Upload } from 'lucide-react';
+import { Plus, Edit2, Save, X, Package, Search, Download, Upload, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Product } from '../types';
 import { cn } from '../lib/utils';
@@ -39,19 +39,35 @@ export default function Products({ userRole }: { userRole?: string }) {
     setIsEditing(product.id);
     setEditForm({
       ...product,
-      low_stock_threshold: product.low_stock_threshold || 10
+      low_stock_threshold: product.low_stock_threshold || 10,
+      stock_quantity: product.stock_quantity
     });
   };
 
   const handleSave = async (id: string | number) => {
     try {
+      const originalProduct = products.find(p => p.id === id);
+      
+      // RBAC Check: Only admin can update stock or threshold
+      if (!isAdmin) {
+        if (editForm.stock_quantity !== originalProduct?.stock_quantity || 
+            editForm.low_stock_threshold !== originalProduct?.low_stock_threshold) {
+          setAlert({ 
+            type: 'warning', 
+            title: 'Permission Denied', 
+            message: 'Only administrators can update stock levels or alert thresholds.' 
+          });
+          return;
+        }
+      }
+
       await api.products.update(id, editForm);
       setIsEditing(null);
       fetchProducts();
       setAlert({ type: 'success', title: t('success'), message: 'Product updated successfully' });
     } catch (error) {
       console.error('Error updating product:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to update product. Please try again.' });
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to update product. Please check your connection and try again.' });
     }
   };
 
@@ -207,26 +223,37 @@ export default function Products({ userRole }: { userRole?: string }) {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={() => downloadSampleExcel('products')}
-            className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
-            title="Download Sample Excel"
-          >
-            <Download size={20} />
-            Sample
-          </button>
-          <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
-            <Upload size={20} />
-            Import
-            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
-          </label>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
-          >
-            <Plus size={20} />
-            {t('addProduct')}
-          </button>
+          <div className="group relative">
+            <button 
+              onClick={() => downloadSampleExcel('products')}
+              className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
+            >
+              <Download size={20} />
+              Sample
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+              Download Excel template for bulk import
+            </div>
+          </div>
+          <div className="group relative">
+            <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
+              <Upload size={20} />
+              Import
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
+            </label>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+              Upload Excel file to add multiple products
+            </div>
+          </div>
+          {isAdmin && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
+            >
+              <Plus size={20} />
+              {t('addProduct')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -299,22 +326,62 @@ export default function Products({ userRole }: { userRole?: string }) {
                   )}
                 </td>
                 <td className="px-8 py-4">
-                  <div className={cn(
-                    "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
-                    product.stock_quantity < (product.low_stock_threshold || 10) ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                  )}>
-                    <Package size={14} />
-                    {product.stock_quantity < (product.low_stock_threshold || 10) ? "Low Stock: " : "Stock: "} {product.stock_quantity} {product.unit}
-                  </div>
-                  {isEditing === product.id && isAdmin && (
-                    <div className="mt-2">
-                      <label className="text-[10px] uppercase font-bold text-black/40">Alert Threshold</label>
-                      <input 
-                        type="number"
-                        className="w-full p-2 border rounded-lg mt-1"
-                        value={editForm.low_stock_threshold}
-                        onChange={e => setEditForm({...editForm, low_stock_threshold: parseInt(e.target.value)})}
-                      />
+                  {isEditing === product.id ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-black/40 block mb-1">Stock Quantity</label>
+                        <div className="relative">
+                          <input 
+                            type="number"
+                            disabled={!isAdmin}
+                            className={cn(
+                              "w-full p-2 border rounded-lg",
+                              !isAdmin && "bg-black/5 cursor-not-allowed"
+                            )}
+                            value={editForm.stock_quantity}
+                            onChange={e => setEditForm({...editForm, stock_quantity: parseInt(e.target.value)})}
+                          />
+                          {!isAdmin && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-black/40 block mb-1">Alert Threshold</label>
+                        <div className="relative">
+                          <input 
+                            type="number"
+                            disabled={!isAdmin}
+                            className={cn(
+                              "w-full p-2 border rounded-lg",
+                              !isAdmin && "bg-black/5 cursor-not-allowed"
+                            )}
+                            value={editForm.low_stock_threshold}
+                            onChange={e => setEditForm({...editForm, low_stock_threshold: parseInt(e.target.value)})}
+                          />
+                          {!isAdmin && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-lg font-bold font-mono",
+                          product.stock_quantity < (product.low_stock_threshold || 10) ? "text-rose-600" : "text-emerald-600"
+                        )}>
+                          {product.stock_quantity}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-widest text-black/40 font-bold">{product.unit}s</span>
+                      </div>
+                      {product.stock_quantity < (product.low_stock_threshold || 10) && (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 text-[10px] font-bold w-fit uppercase tracking-wider">
+                          <AlertCircle size={10} />
+                          Low Stock
+                        </div>
+                      )}
                     </div>
                   )}
                 </td>

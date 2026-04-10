@@ -146,19 +146,28 @@ export default function Customers() {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={() => downloadSampleExcel('customers')}
-            className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
-            title="Download Sample Excel"
-          >
-            <Download size={20} />
-            Sample
-          </button>
-          <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
-            <Upload size={20} />
-            Import
-            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
-          </label>
+          <div className="group relative">
+            <button 
+              onClick={() => downloadSampleExcel('customers')}
+              className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
+            >
+              <Download size={20} />
+              Sample
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+              Download Excel template for bulk import
+            </div>
+          </div>
+          <div className="group relative">
+            <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
+              <Upload size={20} />
+              Import
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
+            </label>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+              Upload Excel file to add multiple customers
+            </div>
+          </div>
           <button 
             onClick={() => setShowAddModal(true)}
             className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"

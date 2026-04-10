@@ -95,6 +95,12 @@ export default function NewInvoice({ onComplete }: NewInvoiceProps) {
     } else {
       newItems[index].amount = 0;
     }
+
+    // Check stock
+    const product = products.find(p => p.id === newItems[index].product_id);
+    if (product && newItems[index].quantity > product.stock_quantity) {
+      // We'll show a warning in the UI
+    }
     
     setItems(newItems);
   };
@@ -237,12 +243,24 @@ export default function NewInvoice({ onComplete }: NewInvoiceProps) {
                   </div>
                   <div className="col-span-4 md:col-span-2">
                     <label className="block text-[10px] font-bold uppercase text-black/30 mb-1">{t('qty')}</label>
-                    <input 
-                      type="number"
-                      className="w-full p-2 bg-white border border-black/10 rounded-xl text-sm"
-                      value={item.quantity === undefined || Number.isNaN(item.quantity) ? '' : item.quantity}
-                      onChange={(e) => updateItem(index, 'quantity', e.target.value === '' ? NaN : parseFloat(e.target.value))}
-                    />
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        className={cn(
+                          "w-full p-2 bg-white border rounded-xl text-sm",
+                          products.find(p => p.id === item.product_id) && item.quantity > (products.find(p => p.id === item.product_id)?.stock_quantity || 0)
+                            ? "border-rose-500 focus:ring-rose-500" 
+                            : "border-black/10 focus:ring-[#FF6321]"
+                        )}
+                        value={item.quantity === undefined || Number.isNaN(item.quantity) ? '' : item.quantity}
+                        onChange={(e) => updateItem(index, 'quantity', e.target.value === '' ? NaN : parseFloat(e.target.value))}
+                      />
+                      {products.find(p => p.id === item.product_id) && item.quantity > (products.find(p => p.id === item.product_id)?.stock_quantity || 0) && (
+                        <div className="absolute -bottom-4 left-0 text-[8px] text-rose-600 font-bold uppercase whitespace-nowrap">
+                          Exceeds Stock ({products.find(p => p.id === item.product_id)?.stock_quantity} left)
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-4 md:col-span-2">
                     <label className="block text-[10px] font-bold uppercase text-black/30 mb-1">{t('rate')}</label>

@@ -3,6 +3,7 @@ import { CreditCard, Search, Plus, Calendar, User } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Customer, Payment } from '../types';
 import { AlertModal } from './ui/Modal';
+import { cn } from '../lib/utils';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -146,10 +147,18 @@ export default function Payments() {
                 <input 
                   required
                   type="number"
-                  className="w-full pl-8 pr-4 py-4 bg-black/5 border-none rounded-2xl focus:ring-2 focus:ring-[#FF6321] font-mono font-bold"
+                  className={cn(
+                    "w-full pl-8 pr-4 py-4 bg-black/5 border-none rounded-2xl focus:ring-2 focus:ring-[#FF6321] font-mono font-bold",
+                    selectedCustomer && parseFloat(amount) > selectedCustomer.total_outstanding && "text-rose-600 focus:ring-rose-500"
+                  )}
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                 />
+                {selectedCustomer && parseFloat(amount) > selectedCustomer.total_outstanding && (
+                  <div className="absolute -bottom-5 left-0 text-[10px] text-rose-600 font-bold uppercase">
+                    Warning: Amount exceeds outstanding (₹{selectedCustomer.total_outstanding})
+                  </div>
+                )}
               </div>
             </div>
             <div>

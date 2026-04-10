@@ -49,6 +49,19 @@ export default function Products({ profile }: { profile?: UserProfile | null }) 
     try {
       const originalProduct = products.find(p => p.id === id);
       
+      // RBAC Check: Only admin can update prices
+      if (!isAdmin) {
+        if (editForm.price !== originalProduct?.price || 
+            editForm.purchase_price !== originalProduct?.purchase_price) {
+          setAlert({ 
+            type: 'warning', 
+            title: 'Permission Denied', 
+            message: 'Only administrators can update unit price or selling price.' 
+          });
+          return;
+        }
+      }
+
       // RBAC Check: Only admin or authorized users can update stock or threshold
       if (!canUpdateStock) {
         if (editForm.stock_quantity !== originalProduct?.stock_quantity || 
@@ -316,24 +329,42 @@ export default function Products({ profile }: { profile?: UserProfile | null }) 
                 </td>
                 <td className="px-8 py-4 font-mono">
                   {isEditing === product.id ? (
-                    <input 
-                      type="number"
-                      className="w-24 p-2 border rounded-lg"
-                      value={editForm.purchase_price === undefined || Number.isNaN(editForm.purchase_price) ? '' : editForm.purchase_price}
-                      onChange={e => setEditForm({...editForm, purchase_price: e.target.value === '' ? NaN : parseFloat(e.target.value)})}
-                    />
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        disabled={!isAdmin}
+                        className={cn(
+                          "w-24 p-2 border rounded-lg",
+                          !isAdmin && "bg-black/5 cursor-not-allowed"
+                        )}
+                        value={editForm.purchase_price === undefined || Number.isNaN(editForm.purchase_price) ? '' : editForm.purchase_price}
+                        onChange={e => setEditForm({...editForm, purchase_price: e.target.value === '' ? NaN : parseFloat(e.target.value)})}
+                      />
+                      {!isAdmin && (
+                        <div className="absolute -top-4 left-0 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
+                      )}
+                    </div>
                   ) : (
                     `₹${product.purchase_price || 0}`
                   )}
                 </td>
                 <td className="px-8 py-4 font-mono font-bold">
                   {isEditing === product.id ? (
-                    <input 
-                      type="number"
-                      className="w-24 p-2 border rounded-lg"
-                      value={editForm.price === undefined || Number.isNaN(editForm.price) ? '' : editForm.price}
-                      onChange={e => setEditForm({...editForm, price: e.target.value === '' ? NaN : parseFloat(e.target.value)})}
-                    />
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        disabled={!isAdmin}
+                        className={cn(
+                          "w-24 p-2 border rounded-lg",
+                          !isAdmin && "bg-black/5 cursor-not-allowed"
+                        )}
+                        value={editForm.price === undefined || Number.isNaN(editForm.price) ? '' : editForm.price}
+                        onChange={e => setEditForm({...editForm, price: e.target.value === '' ? NaN : parseFloat(e.target.value)})}
+                      />
+                      {!isAdmin && (
+                        <div className="absolute -top-4 left-0 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
+                      )}
+                    </div>
                   ) : (
                     `₹${product.price}`
                   )}

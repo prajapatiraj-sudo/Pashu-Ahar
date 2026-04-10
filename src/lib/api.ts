@@ -30,7 +30,10 @@ export const api = {
     restore: (id: string | number) => request(`/products/${id}/restore`, { method: 'POST' }),
   },
   customers: {
-    list: (deleted = false) => request(`/customers?deleted=${deleted}`),
+    list: (params: { deleted?: boolean; search?: string; limit?: number; offset?: number; sortBy?: string; sortOrder?: string } = {}) => {
+      const { deleted = false, search = '', limit = 100, offset = 0, sortBy = 'name', sortOrder = 'ASC' } = params;
+      return request(`/customers?deleted=${deleted}&search=${encodeURIComponent(search)}&limit=${limit}&offset=${offset}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
+    },
     create: (data: any) => request('/customers', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string | number, data: any) => request(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string | number, permanent = false) => request(`/customers/${id}?permanent=${permanent}`, { method: 'DELETE' }),

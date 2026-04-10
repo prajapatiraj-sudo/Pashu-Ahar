@@ -11,7 +11,8 @@ import {
   Search,
   ChevronRight,
   Filter,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '../lib/api';
@@ -112,14 +113,16 @@ export default function Reports() {
       await document.fonts.ready;
       
       // Wait for a moment to ensure all elements are rendered and animations finished
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 3, // Higher scale for better quality
+      const element = reportRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2, // Reduced scale from 3 to 2 for better compatibility with large reports
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: reportRef.current.scrollWidth,
+        windowWidth: element.scrollWidth,
         onclone: (clonedDoc) => {
           // Ensure the cloned document has the font loaded and applied
           const style = clonedDoc.createElement('style');
@@ -127,6 +130,7 @@ export default function Reports() {
             @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
             .font-gujarati { font-family: 'Noto Sans Gujarati', sans-serif !important; }
             * { -webkit-font-smoothing: antialiased; }
+            .print\\:hidden { display: none !important; }
           `;
           clonedDoc.head.appendChild(style);
           
@@ -135,10 +139,16 @@ export default function Reports() {
           gujElements.forEach((el: any) => {
             el.style.fontFamily = "'Noto Sans Gujarati', sans-serif";
           });
+
+          // Hide elements that shouldn't be in the PDF
+          const hideInPrint = clonedDoc.querySelectorAll('.print\\:hidden');
+          hideInPrint.forEach((el: any) => {
+            el.style.display = 'none';
+          });
         }
       });
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG for smaller size
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -150,21 +160,22 @@ export default function Reports() {
       let position = 0;
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
 
       // Add subsequent pages if needed
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
       }
 
       pdf.save(`${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      // More descriptive error for the user
+      alert('Failed to generate PDF. If the report is very large, try filtering the data or using the Print option.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -256,6 +267,14 @@ export default function Reports() {
             </div>
           </div>
           <div className="flex items-center gap-3 print:hidden">
+            <button 
+              onClick={() => window.print()}
+              className="flex items-center gap-2 bg-white border border-black/10 text-black px-6 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all shadow-sm"
+              title="Print Report (Save as PDF)"
+            >
+              <Printer size={18} />
+              Print
+            </button>
             <button 
               onClick={handleShare}
               className="flex items-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-2xl font-bold hover:brightness-110 transition-all shadow-lg shadow-[#25D366]/20"

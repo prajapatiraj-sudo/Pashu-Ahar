@@ -91,6 +91,16 @@ db.exec(`
     timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  -- Indexes for performance
+  CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+  CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+  CREATE INDEX IF NOT EXISTS idx_customers_village ON customers(village);
+  CREATE INDEX IF NOT EXISTS idx_customers_deleted ON customers(deleted);
+  CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON invoices(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON payments(customer_id);
+  CREATE INDEX IF NOT EXISTS idx_products_deleted ON products(deleted);
+  CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
 `);
 
 // Migrations: Add columns if they don't exist

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Phone, MapPin, CreditCard, ChevronRight, X, Eye, Download, Upload } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Phone, MapPin, CreditCard, ChevronRight, X, Eye, Download, Upload, ChevronLeft, MoreVertical, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import CustomerLedger from './CustomerLedger';
 import { AnimatePresence, motion } from 'motion/react';
 import { api } from '../lib/api';
@@ -7,47 +7,85 @@ import type { Customer } from '../types';
 import { cn } from '../lib/utils';
 import { ConfirmModal, AlertModal } from './ui/Modal';
 import { downloadSampleExcel, parseExcelFile } from '../lib/excel';
-
 import { useLanguage } from '../contexts/LanguageContext';
+
+const PAGE_SIZE = 50;
 
 export default function Customers() {
   const { t } = useLanguage();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalOutstanding, setTotalOutstanding] = useState(0);
+  const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '', village: '' });
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [viewLedger, setViewLedger] = useState<Customer | null>(null);
   
-  const [alert, setAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
+  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; title: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | number | null>(null);
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
     try {
-      const data = await api.customers.list();
-      setCustomers(data);
+      const response = await api.customers.list({
+        search: searchTerm,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        sortBy,
+        sortOrder
+      });
+      setCustomers(response.customers);
+      setTotal(response.total);
+      setTotalOutstanding(response.totalOutstanding);
     } catch (error) {
       console.error('Error fetching customers:', error);
+    } finally {
+      setLoading(false);
     }
+  }, [searchTerm, page, sortBy, sortOrder]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCustomers();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchCustomers]);
+
+  const toggleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(field);
+      setSortOrder('ASC');
+    }
+    setPage(0);
   };
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleAddOrUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.customers.create(newCustomer);
+      if (editingCustomer) {
+        await api.customers.update(editingCustomer.id, newCustomer);
+        setAlert({ type: 'success', title: t('success'), message: 'Customer updated successfully' });
+      } else {
+        await api.customers.create(newCustomer);
+        setAlert({ type: 'success', title: t('success'), message: 'Customer added successfully' });
+      }
       setShowAddModal(false);
+      setEditingCustomer(null);
       setNewCustomer({ name: '', phone: '', address: '', village: '' });
       fetchCustomers();
-      setAlert({ type: 'success', title: t('success'), message: 'Customer added successfully' });
     } catch (error: any) {
-      console.error('Error adding customer:', error);
+      console.error('Error saving customer:', error);
       setAlert({ 
         type: 'error', 
         title: t('error'), 
-        message: error.message || 'Failed to add customer. Please try again.' 
+        message: error.message || 'Failed to save customer. Please try again.' 
       });
     }
   };
@@ -57,22 +95,16 @@ export default function Customers() {
       await api.customers.delete(id);
       setConfirmDelete(null);
       fetchCustomers();
-      setAlert({ type: 'success', title: t('success'), message: 'Customer and related data moved to recycle bin' });
+      setAlert({ type: 'success', title: t('success'), message: 'Customer moved to recycle bin' });
     } catch (error: any) {
       console.error('Error deleting customer:', error);
       setAlert({ 
         type: 'error', 
         title: t('error'), 
-        message: error.message || 'Failed to delete customer. Please try again.' 
+        message: error.message || 'Failed to delete customer.' 
       });
     }
   };
-
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.phone.includes(searchTerm) ||
-    (c.village && c.village.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -87,7 +119,6 @@ export default function Customers() {
         try {
           const name = row['Name'] || row['Customer Name'] || row['Customer'] || '';
           if (!name) {
-            console.warn('Skipping row due to missing customer name:', row);
             errorCount++;
             continue;
           }
@@ -101,7 +132,6 @@ export default function Customers() {
           await api.customers.create(customer);
           successCount++;
         } catch (rowError) {
-          console.error('Error importing row:', row, rowError);
           errorCount++;
         }
       }
@@ -113,16 +143,17 @@ export default function Customers() {
         setAlert({ 
           type: 'warning', 
           title: 'Import Partial', 
-          message: `Imported ${successCount} customers. Failed to import ${errorCount} rows. Check console for details.` 
+          message: `Imported ${successCount} customers. Failed to import ${errorCount} rows.` 
         });
       }
     } catch (error) {
       console.error('Error importing customers:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to import customers. Please ensure you are using the correct Excel format.' });
+      setAlert({ type: 'error', title: t('error'), message: 'Failed to import customers.' });
     }
-    // Reset input
     e.target.value = '';
   };
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -131,7 +162,7 @@ export default function Customers() {
         onClose={() => setAlert(null)}
         title={alert?.title || ''}
         message={alert?.message || ''}
-        type={alert?.type}
+        type={alert?.type === 'warning' ? 'error' : alert?.type}
       />
       <ConfirmModal
         isOpen={!!confirmDelete}
@@ -142,42 +173,37 @@ export default function Customers() {
         confirmText="Delete"
         type="danger"
       />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
-          <input 
-            type="text" 
-            placeholder={t('search') + "..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all"
-          />
+        <div className="flex flex-col gap-1">
+          <h2 className="text-3xl font-serif italic font-bold flex items-center gap-3">
+            <Users className="text-[#FF6321]" />
+            {t('customers')}
+          </h2>
+          <div className="flex items-center gap-4 text-xs font-medium text-black/40">
+            <span>Total: <span className="text-black font-bold">{total.toLocaleString()}</span></span>
+            <span>Outstanding: <span className="text-rose-600 font-bold">₹{totalOutstanding.toLocaleString()}</span></span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="group relative">
-            <button 
-              onClick={() => downloadSampleExcel('customers')}
-              className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
-            >
-              <Download size={20} />
-              Sample
-            </button>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-              Download Excel template for bulk import
-            </div>
-          </div>
-          <div className="group relative">
-            <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
-              <Upload size={20} />
-              Import
-              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
-            </label>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-              Upload Excel file to add multiple customers
-            </div>
-          </div>
           <button 
-            onClick={() => setShowAddModal(true)}
+            onClick={() => downloadSampleExcel('customers')}
+            className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all"
+          >
+            <Download size={20} />
+            Sample
+          </button>
+          <label className="flex items-center justify-center gap-2 bg-white border border-black/5 text-black/60 px-4 py-3 rounded-2xl font-bold hover:bg-black/5 transition-all cursor-pointer">
+            <Upload size={20} />
+            Import
+            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
+          </label>
+          <button 
+            onClick={() => {
+              setEditingCustomer(null);
+              setNewCustomer({ name: '', phone: '', address: '', village: '' });
+              setShowAddModal(true);
+            }}
             className="flex items-center justify-center gap-2 bg-[#141414] text-white px-6 py-3 rounded-2xl font-bold hover:bg-black transition-all"
           >
             <Plus size={20} />
@@ -186,76 +212,190 @@ export default function Customers() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCustomers.map((customer) => (
-          <div key={customer.id} className="bg-white p-6 rounded-3xl shadow-sm border border-black/5 hover:shadow-md transition-all group cursor-pointer">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center text-xl font-bold text-black/40">
-                {customer.name.charAt(0)}
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className={cn(
-                  "px-3 py-1 rounded-full text-xs font-bold",
-                  customer.total_outstanding > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                )}>
-                  {t('outstanding')}: ₹{customer.total_outstanding.toLocaleString()}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setViewLedger(customer);
-                    }}
-                    className="p-2 text-black/20 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                    title="View Ledger"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmDelete(customer.id);
-                    }}
-                    className="p-2 text-black/20 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <h3 className="text-xl font-bold mb-4 group-hover:text-[#FF6321] transition-colors">{customer.name}</h3>
-            
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center gap-3 text-sm text-black/60">
-                <Phone size={16} className="text-black/30" />
-                {customer.phone || 'No phone'}
-              </div>
-              <div className="flex items-center gap-3 text-sm text-black/60">
-                <MapPin size={16} className="text-black/30" />
-                <span>{customer.village ? `${customer.village}, ` : ''}{customer.address || 'No address'}</span>
-              </div>
-            </div>
-
-            <button className="w-full flex items-center justify-between p-3 rounded-xl bg-black/5 text-sm font-bold group-hover:bg-[#141414] group-hover:text-white transition-all">
-              View Ledger
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        ))}
+      <div className="relative flex-1 max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" size={18} />
+        <input 
+          type="text" 
+          placeholder={t('search') + "..."}
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(0);
+          }}
+          className="w-full pl-10 pr-4 py-3 bg-white border border-black/5 rounded-2xl text-sm focus:ring-2 focus:ring-[#FF6321] transition-all shadow-sm"
+        />
       </div>
 
-      {/* Add Modal */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-black/5 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-black/5">
+                <th 
+                  className="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-black/40 cursor-pointer hover:text-black transition-colors"
+                  onClick={() => toggleSort('name')}
+                >
+                  <div className="flex items-center gap-2">
+                    Customer Name
+                    {sortBy === 'name' ? (sortOrder === 'ASC' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} />}
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-black/40">Village / Address</th>
+                <th className="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-black/40">Phone</th>
+                <th 
+                  className="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-black/40 text-right cursor-pointer hover:text-black transition-colors"
+                  onClick={() => toggleSort('outstanding')}
+                >
+                  <div className="flex items-center justify-end gap-2">
+                    Outstanding
+                    {sortBy === 'outstanding' ? (sortOrder === 'ASC' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} />}
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-black/40 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {loading && customers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-black/40 italic">Loading customers...</td>
+                </tr>
+              ) : customers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-black/40 italic">No customers found</td>
+                </tr>
+              ) : (
+                customers.map((customer) => (
+                  <tr key={customer.id} className="hover:bg-black/[0.02] transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-black/5 flex items-center justify-center text-xs font-bold text-black/40 group-hover:bg-[#FF6321] group-hover:text-white transition-all">
+                          {customer.name.charAt(0)}
+                        </div>
+                        <span className="text-sm font-bold">{customer.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-black/60">{customer.village || 'N/A'}</span>
+                        <span className="text-[10px] text-black/30 truncate max-w-[200px]">{customer.address || ''}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-black/60">{customer.phone || 'N/A'}</td>
+                    <td className="px-6 py-4 text-right">
+                      <span className={cn(
+                        "text-sm font-bold px-2 py-1 rounded-lg",
+                        customer.total_outstanding > 0 ? "text-rose-600 bg-rose-50" : "text-emerald-600 bg-emerald-50"
+                      )}>
+                        ₹{customer.total_outstanding.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => setViewLedger(customer)}
+                          className="p-2 text-black/20 hover:text-[#FF6321] hover:bg-[#FF6321]/5 rounded-xl transition-all"
+                          title="View Ledger"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setEditingCustomer(customer);
+                            setNewCustomer({
+                              name: customer.name,
+                              phone: customer.phone || '',
+                              address: customer.address || '',
+                              village: customer.village || ''
+                            });
+                            setShowAddModal(true);
+                          }}
+                          className="p-2 text-black/20 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                          title="Edit"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => setConfirmDelete(customer.id)}
+                          className="p-2 text-black/20 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Delete"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 bg-black/5 flex items-center justify-between border-t border-black/5">
+            <div className="text-xs text-black/40">
+              Showing <span className="font-bold text-black">{page * PAGE_SIZE + 1}</span> to <span className="font-bold text-black">{Math.min((page + 1) * PAGE_SIZE, total)}</span> of <span className="font-bold text-black">{total.toLocaleString()}</span> customers
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={page === 0}
+                onClick={() => setPage(p => p - 1)}
+                className="p-2 rounded-xl bg-white border border-black/5 disabled:opacity-30 hover:bg-black/5 transition-all"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="flex items-center gap-1">
+                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                  let pageNum = 0;
+                  if (totalPages <= 5) {
+                    pageNum = i;
+                  } else {
+                    if (page < 3) pageNum = i;
+                    else if (page > totalPages - 3) pageNum = totalPages - 5 + i;
+                    else pageNum = page - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 rounded-xl text-xs font-bold transition-all",
+                        page === pageNum ? "bg-[#FF6321] text-white shadow-lg shadow-[#FF6321]/20" : "bg-white border border-black/5 hover:bg-black/5"
+                      )}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  );
+                })}
+              </div>
+              <button 
+                disabled={page === totalPages - 1}
+                onClick={() => setPage(p => p + 1)}
+                className="p-2 rounded-xl bg-white border border-black/5 disabled:opacity-30 hover:bg-black/5 transition-all"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add/Edit Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl"
+          >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-serif italic font-bold">{t('addCustomer')}</h2>
+              <h2 className="text-2xl font-serif italic font-bold">{editingCustomer ? 'Edit Customer' : t('addCustomer')}</h2>
               <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-black/5 rounded-full">
                 <X size={24} />
               </button>
             </div>
-            <form onSubmit={handleAdd} className="space-y-4">
+            <form onSubmit={handleAddOrUpdate} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-black/40 mb-2">{t('customer')}</label>
                 <input 
@@ -291,12 +431,13 @@ export default function Customers() {
                 />
               </div>
               <button type="submit" className="w-full bg-[#FF6321] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#E5591D] transition-all">
-                {t('save')}
+                {editingCustomer ? 'Update Customer' : t('save')}
               </button>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
+
       <AnimatePresence>
         {viewLedger && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

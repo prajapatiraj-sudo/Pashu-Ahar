@@ -104,15 +104,21 @@ async function startServer() {
     const numStock = parseInt(stock_quantity) || 0;
     const numThreshold = parseInt(low_stock_threshold) || 0;
 
-    // If not admin, check if they are trying to change stock fields
+    // If not admin, check if they are trying to change restricted fields
     if (req.user?.role !== 'admin') {
-      const current = db.prepare('SELECT stock_quantity, low_stock_threshold FROM products WHERE id = ?').get(req.params.id) as any;
+      const current = db.prepare('SELECT price, purchase_price, stock_quantity, low_stock_threshold FROM products WHERE id = ?').get(req.params.id) as any;
       if (!current) return res.status(404).json({ error: 'Product not found' });
 
       // Check if user has explicit permission to update inventory
       const user = db.prepare('SELECT can_update_inventory FROM users WHERE id = ?').get(req.user.id) as any;
       const canUpdateInventory = user?.can_update_inventory === 1;
 
+      // Restrict price changes to admin only
+      if (numPrice !== current.price || numPurchasePrice !== current.purchase_price) {
+        return res.status(403).json({ error: 'Only administrators can update unit price or selling price.' });
+      }
+
+      // Restrict stock changes to authorized users
       if (!canUpdateInventory && (numStock !== current.stock_quantity || numThreshold !== current.low_stock_threshold)) {
         return res.status(403).json({ error: 'You do not have permission to update stock levels or alert thresholds.' });
       }
@@ -162,8 +168,43 @@ async function startServer() {
   // Customers
   app.get('/api/customers', authenticate, (req, res) => {
     const deleted = req.query.deleted === 'true' ? 1 : 0;
-    const customers = db.prepare('SELECT * FROM customers WHERE deleted = ?').all(deleted);
-    res.json(customers);
+    const search = req.query.search as string || '';
+    const limit = parseInt(req.query.limit as string) || 100;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const sortBy = req.query.sortBy as string || 'name';
+    const sortOrder = req.query.sortOrder as string || 'ASC';
+
+    let query = 'FROM customers WHERE deleted = ?';
+    const params: any[] = [deleted];
+
+    if (search) {
+      query += ' AND (name LIKE ? OR phone LIKE ? OR village LIKE ? OR address LIKE ?)';
+      const searchParam = `%${search}%`;
+      params.push(searchParam, searchParam, searchParam, searchParam);
+    }
+
+    // Get total count and total outstanding for the filtered set
+    const statsQuery = `SELECT COUNT(*) as total, SUM(total_outstanding) as total_outstanding ${query}`;
+    const stats = db.prepare(statsQuery).get(...params) as any;
+
+    // Sorting logic
+    let orderBy = 'name COLLATE NOCASE ASC';
+    if (sortBy === 'outstanding') {
+      orderBy = `total_outstanding ${sortOrder}`;
+    } else if (sortBy === 'name') {
+      orderBy = `name COLLATE NOCASE ${sortOrder}`;
+    }
+
+    const finalQuery = `SELECT * ${query} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+    const customers = db.prepare(finalQuery).all(...params, limit, offset);
+    
+    res.json({ 
+      customers, 
+      total: stats.total, 
+      totalOutstanding: stats.total_outstanding || 0,
+      limit, 
+      offset 
+    });
   });
 
   app.post('/api/customers', authenticate, (req: any, res) => {

@@ -59,5 +59,8 @@ export const api = {
   backup: {
     export: () => request('/backup/export'),
     import: (data: any) => request('/backup/import', { method: 'POST', body: JSON.stringify(data) }),
+  },
+  audit: {
+    list: () => request('/audit-logs'),
   }
 };

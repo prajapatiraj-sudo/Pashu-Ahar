@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Save, X, Package, Search, Download, Upload, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
-import type { Product } from '../types';
+import type { Product, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { ConfirmModal, AlertModal } from './ui/Modal';
 import { downloadSampleExcel, parseExcelFile } from '../lib/excel';
 
 import { useLanguage } from '../contexts/LanguageContext';
 
-export default function Products({ userRole }: { userRole?: string }) {
+export default function Products({ profile }: { profile?: UserProfile | null }) {
   const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [isEditing, setIsEditing] = useState<string | number | null>(null);
@@ -20,7 +20,8 @@ export default function Products({ userRole }: { userRole?: string }) {
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; title: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | number | null>(null);
 
-  const isAdmin = userRole === 'admin';
+  const isAdmin = profile?.role === 'admin';
+  const canUpdateStock = isAdmin || profile?.can_update_inventory === 1;
 
   useEffect(() => {
     fetchProducts();
@@ -48,14 +49,14 @@ export default function Products({ userRole }: { userRole?: string }) {
     try {
       const originalProduct = products.find(p => p.id === id);
       
-      // RBAC Check: Only admin can update stock or threshold
-      if (!isAdmin) {
+      // RBAC Check: Only admin or authorized users can update stock or threshold
+      if (!canUpdateStock) {
         if (editForm.stock_quantity !== originalProduct?.stock_quantity || 
             editForm.low_stock_threshold !== originalProduct?.low_stock_threshold) {
           setAlert({ 
             type: 'warning', 
             title: 'Permission Denied', 
-            message: 'Only administrators can update stock levels or alert thresholds.' 
+            message: 'You do not have permission to update stock levels or alert thresholds.' 
           });
           return;
         }
@@ -65,9 +66,13 @@ export default function Products({ userRole }: { userRole?: string }) {
       setIsEditing(null);
       fetchProducts();
       setAlert({ type: 'success', title: t('success'), message: 'Product updated successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating product:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to update product. Please check your connection and try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to update product. Please check your connection and try again.' 
+      });
     }
   };
 
@@ -77,9 +82,13 @@ export default function Products({ userRole }: { userRole?: string }) {
       setConfirmDelete(null);
       fetchProducts();
       setAlert({ type: 'success', title: t('success'), message: 'Product moved to recycle bin' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting product:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to delete product. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to delete product. Please try again.' 
+      });
     }
   };
 
@@ -91,9 +100,13 @@ export default function Products({ userRole }: { userRole?: string }) {
       setNewProduct({ name_en: '', name_gu: '', unit: '', price: 0, purchase_price: 0, stock_quantity: 0, low_stock_threshold: 10 });
       fetchProducts();
       setAlert({ type: 'success', title: t('success'), message: 'Product added successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding product:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to add product. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to add product. Please try again.' 
+      });
     }
   };
 
@@ -333,15 +346,15 @@ export default function Products({ userRole }: { userRole?: string }) {
                         <div className="relative">
                           <input 
                             type="number"
-                            disabled={!isAdmin}
+                            disabled={!canUpdateStock}
                             className={cn(
                               "w-full p-2 border rounded-lg",
-                              !isAdmin && "bg-black/5 cursor-not-allowed"
+                              !canUpdateStock && "bg-black/5 cursor-not-allowed"
                             )}
                             value={editForm.stock_quantity}
-                            onChange={e => setEditForm({...editForm, stock_quantity: parseInt(e.target.value)})}
+                            onChange={e => setEditForm({...editForm, stock_quantity: parseInt(e.target.value) || 0})}
                           />
-                          {!isAdmin && (
+                          {!canUpdateStock && (
                             <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
                           )}
                         </div>
@@ -351,15 +364,15 @@ export default function Products({ userRole }: { userRole?: string }) {
                         <div className="relative">
                           <input 
                             type="number"
-                            disabled={!isAdmin}
+                            disabled={!canUpdateStock}
                             className={cn(
                               "w-full p-2 border rounded-lg",
-                              !isAdmin && "bg-black/5 cursor-not-allowed"
+                              !canUpdateStock && "bg-black/5 cursor-not-allowed"
                             )}
                             value={editForm.low_stock_threshold}
-                            onChange={e => setEditForm({...editForm, low_stock_threshold: parseInt(e.target.value)})}
+                            onChange={e => setEditForm({...editForm, low_stock_threshold: parseInt(e.target.value) || 0})}
                           />
-                          {!isAdmin && (
+                          {!canUpdateStock && (
                             <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-rose-500 font-bold uppercase">Admin Only</div>
                           )}
                         </div>

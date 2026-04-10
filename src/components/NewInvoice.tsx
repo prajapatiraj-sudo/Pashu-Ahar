@@ -122,9 +122,13 @@ export default function NewInvoice({ onComplete }: NewInvoiceProps) {
       });
 
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving invoice:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to save invoice. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to save invoice. Please try again.' 
+      });
     } finally {
       setIsSubmitting(false);
     }

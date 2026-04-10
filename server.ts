@@ -27,6 +27,18 @@ async function startServer() {
       res.status(401).json({ error: 'Invalid token' });
     }
   };
+  
+  // Audit Log Helper
+  const logAction = (userId: number, userName: string, action: string, entityType: string, entityId: number | string | null, details: any) => {
+    try {
+      db.prepare(`
+        INSERT INTO audit_logs (user_id, user_name, action, entity_type, entity_id, details, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(userId, userName, action, entityType, entityId, JSON.stringify(details), new Date().toISOString());
+    } catch (err) {
+      console.error('Failed to log action:', err);
+    }
+  };
 
   const isAdmin = (req: any, res: any, next: any) => {
     if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
@@ -44,8 +56,8 @@ async function startServer() {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, can_update_inventory: user.can_update_inventory }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, can_update_inventory: user.can_update_inventory } });
   });
 
   app.post('/api/auth/register', (req, res) => {
@@ -55,15 +67,15 @@ async function startServer() {
       const result = db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
         .run(email, hashedPassword, name, 'sales');
       const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
-      const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name, can_update_inventory: user.can_update_inventory }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, can_update_inventory: user.can_update_inventory } });
     } catch (err: any) {
       res.status(400).json({ error: 'Email already exists' });
     }
   });
 
   app.get('/api/auth/me', authenticate, (req: any, res) => {
-    const user = db.prepare('SELECT id, email, role, name FROM users WHERE id = ?').get(req.user.id) as any;
+    const user = db.prepare('SELECT id, email, role, name, can_update_inventory FROM users WHERE id = ?').get(req.user.id) as any;
     res.json(user);
   });
   
@@ -74,33 +86,76 @@ async function startServer() {
     res.json(products);
   });
 
-  app.post('/api/products', authenticate, isAdmin, (req, res) => {
+  app.post('/api/products', authenticate, isAdmin, (req: any, res) => {
     const { name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold } = req.body;
     const result = db.prepare('INSERT INTO products (name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold || 10);
+    
+    logAction(req.user.id, req.user.name, 'CREATE', 'PRODUCT', result.lastInsertRowid, req.body);
     res.json({ id: result.lastInsertRowid });
   });
 
-  app.put('/api/products/:id', authenticate, isAdmin, (req, res) => {
+  app.put('/api/products/:id', authenticate, (req: any, res) => {
     const { name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold } = req.body;
-    db.prepare('UPDATE products SET name_en = ?, name_gu = ?, unit = ?, price = ?, purchase_price = ?, stock_quantity = ?, low_stock_threshold = ? WHERE id = ?')
-      .run(name_en, name_gu, unit, price, purchase_price, stock_quantity, low_stock_threshold, req.params.id);
-    res.json({ success: true });
+    
+    // Ensure numeric values
+    const numPrice = parseFloat(price) || 0;
+    const numPurchasePrice = parseFloat(purchase_price) || 0;
+    const numStock = parseInt(stock_quantity) || 0;
+    const numThreshold = parseInt(low_stock_threshold) || 0;
+
+    // If not admin, check if they are trying to change stock fields
+    if (req.user?.role !== 'admin') {
+      const current = db.prepare('SELECT stock_quantity, low_stock_threshold FROM products WHERE id = ?').get(req.params.id) as any;
+      if (!current) return res.status(404).json({ error: 'Product not found' });
+
+      // Check if user has explicit permission to update inventory
+      const user = db.prepare('SELECT can_update_inventory FROM users WHERE id = ?').get(req.user.id) as any;
+      const canUpdateInventory = user?.can_update_inventory === 1;
+
+      if (!canUpdateInventory && (numStock !== current.stock_quantity || numThreshold !== current.low_stock_threshold)) {
+        return res.status(403).json({ error: 'You do not have permission to update stock levels or alert thresholds.' });
+      }
+    }
+
+    try {
+      const original = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id) as any;
+      
+      db.prepare('UPDATE products SET name_en = ?, name_gu = ?, unit = ?, price = ?, purchase_price = ?, stock_quantity = ?, low_stock_threshold = ? WHERE id = ?')
+        .run(name_en, name_gu, unit, numPrice, numPurchasePrice, numStock, numThreshold, req.params.id);
+      
+      logAction(req.user.id, req.user.name, 'UPDATE', 'PRODUCT', req.params.id, {
+        before: original,
+        after: { name_en, name_gu, unit, price: numPrice, purchase_price: numPurchasePrice, stock_quantity: numStock, low_stock_threshold: numThreshold }
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
-  app.delete('/api/products/:id', authenticate, isAdmin, (req, res) => {
+  app.get('/api/audit-logs', authenticate, isAdmin, (req, res) => {
+    const logs = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 500').all();
+    res.json(logs);
+  });
+
+  app.delete('/api/products/:id', authenticate, isAdmin, (req: any, res) => {
     const { permanent } = req.query;
     if (permanent === 'true') {
       db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
+      logAction(req.user.id, req.user.name, 'PERMANENT_DELETE', 'PRODUCT', req.params.id, {});
     } else {
       db.prepare('UPDATE products SET deleted = 1, deletedAt = ? WHERE id = ?')
         .run(new Date().toISOString(), req.params.id);
+      logAction(req.user.id, req.user.name, 'DELETE', 'PRODUCT', req.params.id, {});
     }
     res.json({ success: true });
   });
 
-  app.post('/api/products/:id/restore', authenticate, isAdmin, (req, res) => {
+  app.post('/api/products/:id/restore', authenticate, isAdmin, (req: any, res) => {
     db.prepare('UPDATE products SET deleted = 0, deletedAt = NULL WHERE id = ?').run(req.params.id);
+    logAction(req.user.id, req.user.name, 'RESTORE', 'PRODUCT', req.params.id, {});
     res.json({ success: true });
   });
 
@@ -111,17 +166,21 @@ async function startServer() {
     res.json(customers);
   });
 
-  app.post('/api/customers', authenticate, (req, res) => {
+  app.post('/api/customers', authenticate, (req: any, res) => {
     const { name, phone, address, village } = req.body;
     const result = db.prepare('INSERT INTO customers (name, phone, address, village) VALUES (?, ?, ?, ?)')
       .run(name, phone, address, village);
+    
+    logAction(req.user.id, req.user.name, 'CREATE', 'CUSTOMER', result.lastInsertRowid, req.body);
     res.json({ id: result.lastInsertRowid });
   });
 
-  app.put('/api/customers/:id', authenticate, (req, res) => {
+  app.put('/api/customers/:id', authenticate, (req: any, res) => {
     const { name, phone, address, village } = req.body;
     db.prepare('UPDATE customers SET name = ?, phone = ?, address = ?, village = ? WHERE id = ?')
       .run(name, phone, address, village, req.params.id);
+    
+    logAction(req.user.id, req.user.name, 'UPDATE', 'CUSTOMER', req.params.id, req.body);
     res.json({ success: true });
   });
 
@@ -141,11 +200,12 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post('/api/customers/:id/restore', authenticate, isAdmin, (req, res) => {
+  app.post('/api/customers/:id/restore', authenticate, isAdmin, (req: any, res) => {
     const transaction = db.transaction(() => {
       db.prepare('UPDATE customers SET deleted = 0, deletedAt = NULL WHERE id = ?').run(req.params.id);
       db.prepare('UPDATE invoices SET deleted = 0, deletedAt = NULL WHERE customer_id = ?').run(req.params.id);
       db.prepare('UPDATE payments SET deleted = 0, deletedAt = NULL WHERE customer_id = ?').run(req.params.id);
+      logAction(req.user.id, req.user.name, 'RESTORE', 'CUSTOMER', req.params.id, {});
     });
     transaction();
     res.json({ success: true });
@@ -198,7 +258,7 @@ async function startServer() {
     res.json(items);
   });
 
-  app.post('/api/invoices', authenticate, (req, res) => {
+  app.post('/api/invoices', authenticate, (req: any, res) => {
     const { customer_id, items, paid_amount, date } = req.body;
     
     const customer = db.prepare('SELECT total_outstanding FROM customers WHERE id = ?').get(customer_id) as any;
@@ -230,6 +290,8 @@ async function startServer() {
 
       db.prepare('UPDATE customers SET total_outstanding = ? WHERE id = ?').run(balance_due, customer_id);
       
+      logAction(req.user.id, req.user.name, 'CREATE', 'INVOICE', invoiceId, { customer_id, total_amount, balance_due });
+      
       return invoiceId;
     });
 
@@ -249,8 +311,9 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post('/api/invoices/:id/restore', authenticate, isAdmin, (req, res) => {
+  app.post('/api/invoices/:id/restore', authenticate, isAdmin, (req: any, res) => {
     db.prepare('UPDATE invoices SET deleted = 0, deletedAt = NULL WHERE id = ?').run(req.params.id);
+    logAction(req.user.id, req.user.name, 'RESTORE', 'INVOICE', req.params.id, {});
     res.json({ success: true });
   });
 
@@ -267,15 +330,17 @@ async function startServer() {
     res.json(payments);
   });
 
-  app.post('/api/payments', authenticate, (req, res) => {
+  app.post('/api/payments', authenticate, (req: any, res) => {
     const { customer_id, amount, method, note, date } = req.body;
     
     const transaction = db.transaction(() => {
-      db.prepare('INSERT INTO payments (customer_id, amount, method, note, date) VALUES (?, ?, ?, ?, ?)')
+      const result = db.prepare('INSERT INTO payments (customer_id, amount, method, note, date) VALUES (?, ?, ?, ?, ?)')
         .run(customer_id, amount, method, note, date || new Date().toISOString());
       
       db.prepare('UPDATE customers SET total_outstanding = total_outstanding - ? WHERE id = ?')
         .run(amount, customer_id);
+      
+      logAction(req.user.id, req.user.name, 'CREATE', 'PAYMENT', result.lastInsertRowid, req.body);
     });
 
     transaction();
@@ -293,8 +358,9 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post('/api/payments/:id/restore', authenticate, isAdmin, (req, res) => {
+  app.post('/api/payments/:id/restore', authenticate, isAdmin, (req: any, res) => {
     db.prepare('UPDATE payments SET deleted = 0, deletedAt = NULL WHERE id = ?').run(req.params.id);
+    logAction(req.user.id, req.user.name, 'RESTORE', 'PAYMENT', req.params.id, {});
     res.json({ success: true });
   });
 
@@ -304,34 +370,40 @@ async function startServer() {
     res.json(users);
   });
 
-  app.post('/api/users', authenticate, isAdmin, (req, res) => {
-    const { email, password, name, role } = req.body;
+  app.post('/api/users', authenticate, isAdmin, (req: any, res) => {
+    const { email, password, name, role, can_update_inventory } = req.body;
     const hashedPassword = bcrypt.hashSync(password, 10);
     try {
-      const result = db.prepare('INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)')
-        .run(email, hashedPassword, name, role);
+      const result = db.prepare('INSERT INTO users (email, password, name, role, can_update_inventory) VALUES (?, ?, ?, ?, ?)')
+        .run(email, hashedPassword, name, role, can_update_inventory ? 1 : 0);
+      
+      logAction(req.user.id, req.user.name, 'CREATE', 'USER', result.lastInsertRowid, { email, name, role, can_update_inventory });
       res.json({ id: result.lastInsertRowid });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.put('/api/users/:id', authenticate, isAdmin, (req, res) => {
-    const { name, role, password } = req.body;
+  app.put('/api/users/:id', authenticate, isAdmin, (req: any, res) => {
+    const { name, role, password, can_update_inventory } = req.body;
     if (password) {
       const hashedPassword = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET name = ?, role = ?, password = ? WHERE id = ?')
-        .run(name, role, hashedPassword, req.params.id);
+      db.prepare('UPDATE users SET name = ?, role = ?, password = ?, can_update_inventory = ? WHERE id = ?')
+        .run(name, role, hashedPassword, can_update_inventory ? 1 : 0, req.params.id);
     } else {
-      db.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?')
-        .run(name, role, req.params.id);
+      db.prepare('UPDATE users SET name = ?, role = ?, can_update_inventory = ? WHERE id = ?')
+        .run(name, role, can_update_inventory ? 1 : 0, req.params.id);
     }
+    
+    logAction(req.user.id, req.user.name, 'UPDATE', 'USER', req.params.id, { name, role, can_update_inventory });
     res.json({ success: true });
   });
 
-  app.delete('/api/users/:id', authenticate, isAdmin, (req, res) => {
+  app.delete('/api/users/:id', authenticate, isAdmin, (req: any, res) => {
     db.prepare('UPDATE users SET deleted = 1, deletedAt = ? WHERE id = ?')
       .run(new Date().toISOString(), req.params.id);
+    
+    logAction(req.user.id, req.user.name, 'DELETE', 'USER', req.params.id, {});
     res.json({ success: true });
   });
   

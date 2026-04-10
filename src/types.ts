@@ -59,8 +59,9 @@ export interface Payment {
 }
 
 export interface UserProfile {
-  uid: string;
+  id: string | number;
   email: string;
   name?: string;
   role: 'admin' | 'sales';
+  can_update_inventory?: number;
 }

@@ -12,7 +12,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', password: '', name: '', role: 'sales' as const });
+  const [newUser, setNewUser] = useState({ email: '', password: '', name: '', role: 'sales' as const, can_update_inventory: false });
   const [isCreating, setIsCreating] = useState(false);
   const [alert, setAlert] = useState<{ type: 'success' | 'error', title: string, message: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | number | null>(null);
@@ -38,7 +38,7 @@ export default function UserManagement() {
     try {
       await api.users.create(newUser);
       setShowAddModal(false);
-      setNewUser({ email: '', password: '', name: '', role: 'sales' });
+      setNewUser({ email: '', password: '', name: '', role: 'sales', can_update_inventory: false });
       setAlert({ type: 'success', title: 'Success', message: 'User created successfully' });
       fetchUsers();
     } catch (error: any) {
@@ -55,6 +55,19 @@ export default function UserManagement() {
       fetchUsers();
     } catch (error) {
       console.error('Error updating role:', error);
+    }
+  };
+
+  const toggleInventoryPermission = async (user: UserProfile) => {
+    try {
+      await api.users.update(user.id, { 
+        name: user.name,
+        role: user.role,
+        can_update_inventory: user.can_update_inventory === 1 ? 0 : 1 
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating inventory permission:', error);
     }
   };
 
@@ -108,6 +121,7 @@ export default function UserManagement() {
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-black/30">{t('user')}</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-black/30">{t('email')}</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-black/30">{t('role')}</th>
+                <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-black/30">Inventory Access</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-black/30 text-right">{t('actions')}</th>
               </tr>
             </thead>
@@ -130,6 +144,19 @@ export default function UserManagement() {
                     )}>
                       {user.role}
                     </span>
+                  </td>
+                  <td className="py-4">
+                    <button 
+                      onClick={() => toggleInventoryPermission(user)}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all",
+                        user.role === 'admin' || user.can_update_inventory === 1 
+                          ? "bg-emerald-100 text-emerald-600" 
+                          : "bg-rose-100 text-rose-600"
+                      )}
+                    >
+                      {user.role === 'admin' || user.can_update_inventory === 1 ? 'Enabled' : 'Disabled'}
+                    </button>
                   </td>
                   <td className="py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -267,6 +294,19 @@ export default function UserManagement() {
                         Admin
                       </button>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-4 bg-black/5 rounded-2xl">
+                    <input 
+                      type="checkbox"
+                      id="can_update_inventory"
+                      checked={newUser.can_update_inventory}
+                      onChange={e => setNewUser({...newUser, can_update_inventory: e.target.checked})}
+                      className="w-5 h-5 rounded border-black/10 text-[#FF6321] focus:ring-[#FF6321]"
+                    />
+                    <label htmlFor="can_update_inventory" className="text-sm font-bold text-black/60">
+                      Allow Inventory Updates (Stock & Thresholds)
+                    </label>
                   </div>
                 </div>
 

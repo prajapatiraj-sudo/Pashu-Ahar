@@ -42,9 +42,13 @@ export default function Customers() {
       setNewCustomer({ name: '', phone: '', address: '', village: '' });
       fetchCustomers();
       setAlert({ type: 'success', title: t('success'), message: 'Customer added successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding customer:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to add customer. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to add customer. Please try again.' 
+      });
     }
   };
 
@@ -54,9 +58,13 @@ export default function Customers() {
       setConfirmDelete(null);
       fetchCustomers();
       setAlert({ type: 'success', title: t('success'), message: 'Customer and related data moved to recycle bin' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting customer:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to delete customer. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to delete customer. Please try again.' 
+      });
     }
   };
 

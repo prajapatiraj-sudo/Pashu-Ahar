@@ -75,8 +75,21 @@ db.exec(`
     password TEXT NOT NULL,
     name TEXT,
     role TEXT DEFAULT 'sales',
+    can_update_inventory INTEGER DEFAULT 0,
     deleted INTEGER DEFAULT 0,
     deletedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_name TEXT,
+    action TEXT,
+    entity_type TEXT,
+    entity_id INTEGER,
+    details TEXT,
+    timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
 

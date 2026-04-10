@@ -17,7 +17,8 @@ import {
   LogOut,
   ShieldCheck,
   BarChart3,
-  Database
+  Database,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -38,11 +39,12 @@ import { Trash2 } from 'lucide-react';
 import Reports from './components/Reports';
 import BackupRestore from './components/BackupRestore';
 import UserManagement from './components/UserManagement';
+import AuditLogs from './components/AuditLogs';
 
 import { useLanguage } from './contexts/LanguageContext';
 import { Globe } from 'lucide-react';
 
-type View = 'dashboard' | 'products' | 'customers' | 'invoices' | 'new-invoice' | 'payments' | 'users' | 'reports' | 'backup' | 'recycle-bin';
+type View = 'dashboard' | 'products' | 'customers' | 'invoices' | 'new-invoice' | 'payments' | 'users' | 'reports' | 'backup' | 'recycle-bin' | 'audit-logs';
 
 export default function App() {
   const { user, profile, loading, logout, isAdmin, isSales } = useAuth();
@@ -59,6 +61,7 @@ export default function App() {
     { id: 'payments', label: t('payments'), icon: CreditCard, roles: ['admin', 'sales'] },
     { id: 'reports', label: t('reports'), icon: BarChart3, roles: ['admin', 'sales'] },
     { id: 'users', label: t('users'), icon: ShieldCheck, roles: ['admin'] },
+    { id: 'audit-logs', label: 'Change Log', icon: History, roles: ['admin'] },
     { id: 'backup', label: t('backupRestore'), icon: Database, roles: ['admin'] },
     { id: 'recycle-bin', label: 'Recycle Bin', icon: Trash2, roles: ['admin'] },
   ];
@@ -252,13 +255,14 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {currentView === 'dashboard' && <Dashboard onNavigate={setCurrentView} />}
-              {currentView === 'products' && <Products userRole={profile?.role} />}
+              {currentView === 'products' && <Products profile={profile} />}
               {currentView === 'customers' && <Customers />}
               {currentView === 'invoices' && <Invoices />}
               {currentView === 'new-invoice' && <NewInvoice onComplete={() => setCurrentView('invoices')} />}
               {currentView === 'payments' && <Payments />}
               {currentView === 'reports' && <Reports />}
               {currentView === 'users' && <UserManagement />}
+              {currentView === 'audit-logs' && <AuditLogs />}
               {currentView === 'backup' && <BackupRestore />}
               {currentView === 'recycle-bin' && <RecycleBin />}
             </motion.div>

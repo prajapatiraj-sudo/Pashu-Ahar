@@ -52,9 +52,13 @@ export default function Payments() {
       setNote('');
       fetchCustomers(); // Refresh customer outstanding
       setAlert({ type: 'success', title: t('success'), message: 'Payment recorded successfully' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error recording payment:', error);
-      setAlert({ type: 'error', title: t('error'), message: 'Failed to record payment. Please try again.' });
+      setAlert({ 
+        type: 'error', 
+        title: t('error'), 
+        message: error.message || 'Failed to record payment. Please try again.' 
+      });
     } finally {
       setIsSubmitting(false);
     }

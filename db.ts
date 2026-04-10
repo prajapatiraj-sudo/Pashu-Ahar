@@ -93,6 +93,24 @@ db.exec(`
   );
 `);
 
+// Migrations: Add columns if they don't exist
+const addColumnIfNotExists = (table: string, column: string, type: string) => {
+  try {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+    const exists = info.some(col => col.name === column);
+    if (!exists) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      console.log(`Added column ${column} to ${table}`);
+    }
+  } catch (err) {
+    console.error(`Error adding column ${column} to ${table}:`, err);
+  }
+};
+
+addColumnIfNotExists('products', 'low_stock_threshold', 'INTEGER DEFAULT 10');
+addColumnIfNotExists('products', 'purchase_price', 'REAL DEFAULT 0');
+addColumnIfNotExists('users', 'can_update_inventory', 'INTEGER DEFAULT 0');
+
 // Seed initial products based on the bill image provided
 const seedProducts = [
   { en: 'Kapas Khol', gu: 'કપાસ ખોળ', price: 0 },

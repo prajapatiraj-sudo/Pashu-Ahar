@@ -37,10 +37,10 @@ export default function AuditLogs() {
   };
 
   const filteredLogs = logs.filter(log => 
-    log.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.entity_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.details.toLowerCase().includes(searchTerm.toLowerCase())
+    (log.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.action || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.entity_type || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.details || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getActionColor = (action: string) => {
@@ -48,8 +48,41 @@ export default function AuditLogs() {
       case 'CREATE': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
       case 'UPDATE': return 'bg-blue-50 text-blue-600 border-blue-100';
       case 'DELETE': return 'bg-rose-50 text-rose-600 border-rose-100';
+      case 'PERMANENT_DELETE': return 'bg-black text-white border-black';
       case 'RESTORE': return 'bg-indigo-50 text-indigo-600 border-indigo-100';
       default: return 'bg-gray-50 text-gray-600 border-gray-100';
+    }
+  };
+
+  const renderDetails = (details: string) => {
+    try {
+      const parsed = JSON.parse(details);
+      if (typeof parsed === 'object' && parsed !== null) {
+        // If it's an update with before/after
+        if (parsed.before && parsed.after) {
+          return (
+            <div className="space-y-1">
+              <div className="text-[10px] text-black/40 italic">Changes detected</div>
+              <div className="flex flex-wrap gap-1">
+                {Object.keys(parsed.after).map(key => {
+                  if (JSON.stringify(parsed.before[key]) !== JSON.stringify(parsed.after[key])) {
+                    return (
+                      <span key={key} className="px-1.5 py-0.5 bg-black/5 rounded text-[10px]">
+                        <span className="font-bold">{key}:</span> {String(parsed.before[key])} → {String(parsed.after[key])}
+                      </span>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            </div>
+          );
+        }
+        return <pre className="text-[10px] text-black/60 font-mono whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>;
+      }
+      return details;
+    } catch {
+      return details;
     }
   };
 
@@ -101,8 +134,12 @@ export default function AuditLogs() {
                   <tr key={log.id} className="hover:bg-black/[0.02] transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold">{format(new Date(log.timestamp), 'dd MMM yyyy')}</span>
-                        <span className="text-[10px] text-black/40">{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
+                        <span className="text-sm font-bold">
+                          {log.timestamp ? format(new Date(log.timestamp), 'dd MMM yyyy') : 'N/A'}
+                        </span>
+                        <span className="text-[10px] text-black/40">
+                          {log.timestamp ? format(new Date(log.timestamp), 'HH:mm:ss') : ''}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -125,10 +162,8 @@ export default function AuditLogs() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="max-w-xs overflow-hidden">
-                        <p className="text-xs text-black/60 truncate" title={log.details}>
-                          {log.details}
-                        </p>
+                      <div className="max-w-md overflow-hidden">
+                        {renderDetails(log.details)}
                       </div>
                     </td>
                   </tr>

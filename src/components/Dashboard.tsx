@@ -26,12 +26,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   const fetchDashboardData = async () => {
     try {
-      const [products, customers, invoices] = await Promise.all([
+      const [products, customersResponse, invoices] = await Promise.all([
         api.products.list(),
-        api.customers.list(),
+        api.customers.list({ limit: 1000 }),
         api.invoices.list()
       ]);
 
+      const customers = customersResponse.customers || [];
       const totalSales = invoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
       const totalOutstanding = customers.reduce((sum, cust) => sum + (cust.total_outstanding || 0), 0);
       const lowStockCount = products.filter(p => p.stock_quantity < 10).length;

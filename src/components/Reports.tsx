@@ -20,6 +20,7 @@ import type { Product, Customer, Invoice } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
 import { useLanguage } from '../contexts/LanguageContext';
@@ -43,13 +44,13 @@ export default function Reports() {
 
   const fetchReportsData = async () => {
     try {
-      const [productsData, customersData, invoicesData] = await Promise.all([
+      const [productsData, customersResponse, invoicesData] = await Promise.all([
         api.products.list(),
-        api.customers.list(),
+        api.customers.list({ limit: 1000 }), // Fetch more for reports
         api.invoices.list()
       ]);
       setProducts(productsData);
-      setCustomers(customersData);
+      setCustomers(customersResponse.customers || []);
       setInvoices(invoicesData);
       setLoading(false);
     } catch (error) {
@@ -109,73 +110,116 @@ export default function Reports() {
 
     setIsGeneratingPDF(true);
     try {
-      // Ensure fonts are loaded before capturing
-      await document.fonts.ready;
-      
-      // Wait for a moment to ensure all elements are rendered and animations finished
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const element = reportRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2, // Reduced scale from 3 to 2 for better compatibility with large reports
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        onclone: (clonedDoc) => {
-          // Ensure the cloned document has the font loaded and applied
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
-            .font-gujarati { font-family: 'Noto Sans Gujarati', sans-serif !important; }
-            * { -webkit-font-smoothing: antialiased; }
-            .print\\:hidden { display: none !important; }
-          `;
-          clonedDoc.head.appendChild(style);
-          
-          // Force apply font to Gujarati elements
-          const gujElements = clonedDoc.querySelectorAll('.font-gujarati');
-          gujElements.forEach((el: any) => {
-            el.style.fontFamily = "'Noto Sans Gujarati', sans-serif";
-          });
-
-          // Hide elements that shouldn't be in the PDF
-          const hideInPrint = clonedDoc.querySelectorAll('.print\\:hidden');
-          hideInPrint.forEach((el: any) => {
-            el.style.display = 'none';
-          });
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG for smaller size
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
+      const dateStr = format(new Date(), 'dd MMM yyyy, hh:mm a');
+      const fileName = `${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pdfHeight;
+      // For table-based reports, use autoTable for better reliability with large datasets
+      if (['outstanding', 'stock', 'low-stock', 'best-selling'].includes(activeReport)) {
+        pdf.setFontSize(20);
+        pdf.text(reportTabs.find(t => t.id === activeReport)?.label || 'Report', 14, 22);
+        pdf.setFontSize(10);
+        pdf.setTextColor(100);
+        pdf.text(`Generated on ${dateStr}`, 14, 30);
+        pdf.text('Powered by Ruhi Computer', 14, 35);
 
-      // Add subsequent pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
+        let tableData: any[] = [];
+        let columns: string[] = [];
+
+        if (activeReport === 'outstanding') {
+          columns = ['Customer Name', 'Phone', 'Outstanding (₹)'];
+          tableData = customers
+            .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .sort((a, b) => b.total_outstanding - a.total_outstanding)
+            .map(c => [c.name, c.phone, c.total_outstanding.toLocaleString()]);
+        } else if (activeReport === 'stock') {
+          columns = ['Product Name', 'Gujarati Name', 'Stock', 'Unit', 'Value (₹)'];
+          tableData = products
+            .filter(p => p.name_en.toLowerCase().includes(searchTerm.toLowerCase()) || p.name_gu.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map(p => [
+              p.name_en, 
+              p.name_gu, 
+              p.stock_quantity, 
+              p.unit, 
+              (p.stock_quantity * (p.purchase_price || 0)).toLocaleString()
+            ]);
+        } else if (activeReport === 'low-stock') {
+          columns = ['Product Name', 'Gujarati Name', 'Current Stock', 'Threshold'];
+          tableData = products
+            .filter(p => p.stock_quantity < (p.low_stock_threshold || 10))
+            .map(p => [p.name_en, p.name_gu, p.stock_quantity, p.low_stock_threshold || 10]);
+        } else if (activeReport === 'best-selling') {
+          columns = ['Rank', 'Product Name', 'Gujarati Name', 'Units Sold', 'Revenue (₹)'];
+          tableData = getBestSelling().map((item, i) => [
+            i + 1,
+            item.name,
+            item.name_gu || '',
+            item.quantity,
+            item.revenue.toLocaleString()
+          ]);
+        }
+
+        autoTable(pdf, {
+          head: [columns],
+          body: tableData,
+          startY: 45,
+          theme: 'grid',
+          headStyles: { fillColor: [20, 20, 20], textColor: [255, 255, 255] },
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+          margin: { top: 45 },
+          styles: { font: 'helvetica', fontSize: 9 }
+        });
+
+        pdf.save(fileName);
+      } else {
+        // For Profit & Loss (which has charts/cards), use html2canvas
+        await document.fonts.ready;
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const element = reportRef.current;
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          windowWidth: element.scrollWidth,
+          onclone: (clonedDoc) => {
+            const style = clonedDoc.createElement('style');
+            style.innerHTML = `
+              @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap');
+              .font-gujarati { font-family: 'Noto Sans Gujarati', sans-serif !important; }
+              * { -webkit-font-smoothing: antialiased; }
+              .print\\:hidden { display: none !important; }
+            `;
+            clonedDoc.head.appendChild(style);
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgProps = pdf.getImageProperties(imgData);
+        const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        let heightLeft = imgHeight;
+        let position = 0;
+
         pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
-      }
 
-      pdf.save(`${activeReport}-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight, undefined, 'FAST');
+          heightLeft -= pdfHeight;
+        }
+
+        pdf.save(fileName);
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
-      // More descriptive error for the user
-      alert('Failed to generate PDF. If the report is very large, try filtering the data or using the Print option.');
+      alert('Failed to generate PDF. Please use the Print option as a fallback.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -194,8 +238,8 @@ export default function Reports() {
     if (activeReport === 'outstanding') {
       title = "Party-wise Outstanding Report";
       content = customers
-        .filter(c => c.total_outstanding > 0)
-        .map(c => `${c.name}: ₹${c.total_outstanding.toLocaleString()}`)
+        .filter(c => (c.total_outstanding || 0) > 0)
+        .map(c => `${c.name}: ₹${(c.total_outstanding || 0).toLocaleString()}`)
         .join('\n');
     } else if (activeReport === 'low-stock') {
       title = "Low Stock Alert Report";
@@ -254,7 +298,24 @@ export default function Reports() {
       </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-black/5 overflow-hidden" ref={reportRef}>
-        <div className="p-8 border-b border-black/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Print-only Header */}
+        <div className="hidden print:block p-8 border-b-2 border-black mb-8">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-black text-[#dc2626] mb-1 tracking-tighter">કૃષ્ણમ પશુ આહાર</h1>
+              <p className="text-lg font-bold">માં કૃપા કોમ્પલેક્ષ, ધરમપુર-૩૯૬૦૫૦ જિ. વલસાડ.</p>
+              <p className="font-bold">Mo. 87585 99902</p>
+            </div>
+            <div className="text-right">
+              <h2 className="text-2xl font-bold uppercase tracking-widest">
+                {reportTabs.find(t => t.id === activeReport)?.label}
+              </h2>
+              <p className="text-sm font-medium text-black/60">Generated on {format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 border-b border-black/5 flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-[#FF6321]/10 flex items-center justify-center text-[#FF6321]">
               <FileText size={28} />

@@ -46,11 +46,11 @@ export default function NewInvoice({ onComplete }: NewInvoiceProps) {
 
   const fetchData = async () => {
     try {
-      const [customersData, productsData] = await Promise.all([
-        api.customers.list(),
+      const [customersResponse, productsData] = await Promise.all([
+        api.customers.list({ limit: 1000 }),
         api.products.list()
       ]);
-      setCustomers(customersData);
+      setCustomers(customersResponse.customers || []);
       setProducts(productsData);
     } catch (error) {
       console.error('Error fetching data:', error);

@@ -26,9 +26,18 @@ body {
     margin: 0;
     padding: 0;
     background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .print\:hidden {
+  /* Hide sidebar and header when printing */
+  aside, header, .print\:hidden {
     display: none !important;
+  }
+  /* Ensure main content takes full width */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
   .no-scrollbar {
     overflow: visible !important;
@@ -37,5 +46,19 @@ body {
   .bg-white {
     box-shadow: none !important;
     border: 1px solid #eee !important;
+    page-break-inside: avoid;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
   }
 }

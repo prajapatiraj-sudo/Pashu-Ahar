@@ -24,11 +24,13 @@ export default function RecycleBin() {
   const fetchDeletedItems = async () => {
     setLoading(true);
     try {
-      const data = await api[activeTab].list(true);
-      setItems(data);
+      const response = await api[activeTab].list(activeTab === 'customers' ? { deleted: true, limit: 1000 } : true as any);
+      const data = activeTab === 'customers' ? (response.customers || []) : response;
+      setItems(Array.isArray(data) ? data : []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching deleted items:', error);
+      setItems([]);
       setLoading(false);
     }
   };

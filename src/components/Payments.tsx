@@ -25,8 +25,8 @@ export default function Payments() {
 
   const fetchCustomers = async () => {
     try {
-      const data = await api.customers.list();
-      setCustomers(data);
+      const response = await api.customers.list({ limit: 1000 });
+      setCustomers(response.customers || []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
